@@ -9,10 +9,12 @@ const CANVAS_WIDTH = 375;
 const CANVAS_HEIGHT = 812;
 
 export function Canvas() {
-  const { elements } = useWirepadStore();
+  const activeScreen = useWirepadStore((s) => s.getActiveScreen());
   const { setNodeRef, isOver } = useDroppable({
     id: "canvas",
   });
+
+  const elements = activeScreen.elements;
 
   return (
     <main className="flex flex-1 items-center justify-center bg-background p-8">

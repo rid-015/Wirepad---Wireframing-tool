@@ -18,7 +18,9 @@ import {
 } from "@/components/ui/tooltip";
 
 export function Toolbar() {
-  const { grid, setGridVisible, setGridSize, clearCanvas } = useWirepadStore();
+  const { grid, setGridVisible, setGridSize, clearCanvas, getActiveScreen } =
+    useWirepadStore();
+  const activeScreen = getActiveScreen();
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -27,8 +29,9 @@ export function Toolbar() {
           <h1 className="text-sm font-semibold tracking-tight text-foreground">
             Wirepad
           </h1>
-          <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-            MVP
+          <div className="mx-2 h-4 w-px bg-border" />
+          <span className="text-xs text-muted-foreground truncate max-w-[160px]">
+            {activeScreen.name}
           </span>
         </div>
 

@@ -1,62 +1,13 @@
 "use client";
 
-import React from "react"
-
-import {
-  MousePointerClick,
-  Type,
-  TextCursorInput,
-  RectangleHorizontal,
-  ImageIcon,
-} from "lucide-react";
-import type { ElementType } from "@/lib/store";
+import { useState } from "react";
+import { Search, ChevronRight } from "lucide-react";
 import { useDraggable } from "@dnd-kit/core";
-
-interface ComponentItem {
-  type: ElementType;
-  label: string;
-  icon: React.ReactNode;
-  defaultWidth: number;
-  defaultHeight: number;
-}
-
-const COMPONENT_ITEMS: ComponentItem[] = [
-  {
-    type: "button",
-    label: "Button",
-    icon: <MousePointerClick className="h-4 w-4" />,
-    defaultWidth: 120,
-    defaultHeight: 40,
-  },
-  {
-    type: "text",
-    label: "Text",
-    icon: <Type className="h-4 w-4" />,
-    defaultWidth: 200,
-    defaultHeight: 24,
-  },
-  {
-    type: "input",
-    label: "Input",
-    icon: <TextCursorInput className="h-4 w-4" />,
-    defaultWidth: 200,
-    defaultHeight: 40,
-  },
-  {
-    type: "card",
-    label: "Card",
-    icon: <RectangleHorizontal className="h-4 w-4" />,
-    defaultWidth: 240,
-    defaultHeight: 140,
-  },
-  {
-    type: "image",
-    label: "Image",
-    icon: <ImageIcon className="h-4 w-4" />,
-    defaultWidth: 160,
-    defaultHeight: 120,
-  },
-];
+import {
+  type ComponentItem,
+  type ComponentCategory,
+  searchComponents,
+} from "@/lib/component-registry";
 
 function DraggableItem({ item }: { item: ComponentItem }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -74,31 +25,88 @@ function DraggableItem({ item }: { item: ComponentItem }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`flex items-center gap-3 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-grab active:cursor-grabbing ${
+      className={`flex w-full items-center rounded px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-grab active:cursor-grabbing ${
         isDragging ? "opacity-40" : ""
       }`}
     >
-      {item.icon}
-      <span>{item.label}</span>
+      <span className="truncate">{item.label}</span>
     </button>
   );
 }
 
-export function Sidebar() {
+function CategorySection({
+  category,
+  defaultOpen,
+}: {
+  category: ComponentCategory;
+  defaultOpen: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
   return (
-    <aside className="flex h-full w-52 flex-col border-r border-border bg-sidebar">
-      <div className="px-4 py-3">
-        <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-          Components
-        </p>
-      </div>
-      <nav className="flex flex-1 flex-col gap-0.5 px-2">
-        {COMPONENT_ITEMS.map((item) => (
-          <DraggableItem key={item.type} item={item} />
-        ))}
-      </nav>
-    </aside>
+    <div>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronRight
+          className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}
+        />
+        <span>{category.name}</span>
+        <span className="ml-auto text-muted-foreground/40 normal-case tracking-normal">
+          {category.items.length}
+        </span>
+      </button>
+      {isOpen && (
+        <div className="flex flex-col gap-px pl-3 pr-1 pb-1">
+          {category.items.map((item) => (
+            <DraggableItem key={item.type} item={item} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
-export { COMPONENT_ITEMS };
+export function Sidebar() {
+  const [query, setQuery] = useState("");
+  const categories = searchComponents(query);
+  const isSearching = query.trim().length > 0;
+
+  return (
+    <aside className="flex h-full w-56 flex-col border-r border-border bg-sidebar">
+      {/* Search */}
+      <div className="px-3 pt-3 pb-2">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
+          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search components..."
+            className="min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none"
+          />
+        </div>
+      </div>
+
+      {/* Component list */}
+      <div className="flex-1 overflow-y-auto pb-2">
+        {categories.length === 0 ? (
+          <div className="flex items-center justify-center py-8 text-xs text-muted-foreground/40">
+            No components found
+          </div>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {categories.map((category) => (
+              <CategorySection
+                key={category.name}
+                category={category}
+                defaultOpen={isSearching || category.name === "Layout" || category.name === "Inputs"}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}

@@ -12,6 +12,7 @@ import { useWirepadStore } from "@/lib/store";
 import { Toolbar } from "./toolbar";
 import { Sidebar } from "./sidebar";
 import { Canvas, CANVAS_WIDTH, CANVAS_HEIGHT } from "./canvas";
+import { ScreenManager } from "./screen-manager";
 
 export function Editor() {
   const { addElement, updateElement, grid, loadFromStorage } =
@@ -98,6 +99,7 @@ export function Editor() {
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
           <Canvas />
+          <ScreenManager />
         </div>
       </div>
     </DndContext>
