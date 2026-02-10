@@ -1,12 +1,80 @@
 "use client";
 
 import type React from "react";
+import { useState, useRef, useCallback } from "react";
 import type { CanvasElement } from "@/lib/store";
 import { useWirepadStore } from "@/lib/store";
 import { useDraggable } from "@dnd-kit/core";
 import { Trash2, Copy } from "lucide-react";
 
-function ElementRenderer({ element }: { element: CanvasElement }) {
+const EDITABLE_TYPES = new Set(["heading", "text", "paragraph", "button"]);
+
+function getDefaultText(type: string): string {
+  switch (type) {
+    case "heading":
+    case "text":
+      return "Heading";
+    case "paragraph":
+      return "Paragraph text goes here. Double-click to edit.";
+    case "button":
+      return "Button";
+    default:
+      return "";
+  }
+}
+
+function EditableText({
+  value,
+  onCommit,
+  multiline,
+  className,
+}: {
+  value: string;
+  onCommit: (text: string) => void;
+  multiline?: boolean;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  const handleBlur = () => {
+    const text = ref.current?.innerText?.trim() || value;
+    onCommit(text);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !multiline) {
+      e.preventDefault();
+      ref.current?.blur();
+    }
+    // Stop the event from reaching DnD listeners
+    e.stopPropagation();
+  };
+
+  return (
+    <div
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      onPointerDown={(e) => e.stopPropagation()}
+      className={`outline-none cursor-text ${className ?? ""}`}
+    >
+      {value}
+    </div>
+  );
+}
+
+function ElementRenderer({
+  element,
+  isEditing,
+  onCommitText,
+}: {
+  element: CanvasElement;
+  isEditing?: boolean;
+  onCommitText?: (text: string) => void;
+}) {
+  const displayText = element.properties.text || getDefaultText(element.type);
   switch (element.type) {
     // --- Layout ---
     case "container":
@@ -46,9 +114,17 @@ function ElementRenderer({ element }: { element: CanvasElement }) {
 
     // --- Inputs ---
     case "button":
-      return (
+      return isEditing && onCommitText ? (
+        <div className="flex h-full w-full items-center justify-center rounded-md border border-muted-foreground/30 bg-muted/50">
+          <EditableText
+            value={displayText}
+            onCommit={onCommitText}
+            className="text-xs text-muted-foreground text-center"
+          />
+        </div>
+      ) : (
         <div className="flex h-full w-full items-center justify-center rounded-md border border-muted-foreground/30 bg-muted/50 text-xs text-muted-foreground">
-          Button
+          {displayText}
         </div>
       );
     case "text-input":
@@ -193,17 +269,28 @@ function ElementRenderer({ element }: { element: CanvasElement }) {
     // --- Content ---
     case "heading":
     case "text":
-      return (
+      return isEditing && onCommitText ? (
+        <EditableText
+          value={displayText}
+          onCommit={onCommitText}
+          className="flex h-full w-full items-start text-sm font-medium text-muted-foreground"
+        />
+      ) : (
         <div className="flex h-full w-full items-start text-sm font-medium text-muted-foreground">
-          Heading
+          {displayText}
         </div>
       );
     case "paragraph":
-      return (
-        <div className="flex h-full w-full flex-col gap-1.5">
-          <div className="h-2 w-full rounded bg-muted-foreground/15" />
-          <div className="h-2 w-full rounded bg-muted-foreground/15" />
-          <div className="h-2 w-3/4 rounded bg-muted-foreground/15" />
+      return isEditing && onCommitText ? (
+        <EditableText
+          value={displayText}
+          onCommit={onCommitText}
+          multiline
+          className="h-full w-full text-xs text-muted-foreground/70 leading-relaxed"
+        />
+      ) : (
+        <div className="h-full w-full text-xs text-muted-foreground/70 leading-relaxed">
+          {displayText}
         </div>
       );
     case "image":
@@ -449,6 +536,35 @@ function ElementRenderer({ element }: { element: CanvasElement }) {
         </div>
       );
 
+    // --- Shapes ---
+    case "shape-rectangle":
+      return (
+        <div className="h-full w-full border border-muted-foreground/40 bg-muted-foreground/5" />
+      );
+    case "shape-circle":
+      return (
+        <div className="h-full w-full rounded-full border border-muted-foreground/40 bg-muted-foreground/5" />
+      );
+    case "shape-rounded-rect":
+      return (
+        <div className="h-full w-full rounded-xl border border-muted-foreground/40 bg-muted-foreground/5" />
+      );
+    case "shape-divider-line":
+      return (
+        <div className="flex h-full w-full items-center">
+          <div className="h-px w-full bg-muted-foreground/40" />
+        </div>
+      );
+    case "shape-arrow-line":
+      return (
+        <div className="flex h-full w-full items-center">
+          <svg className="h-full w-full" viewBox="0 0 160 24" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="4" y1="12" x2="148" y2="12" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground/40" />
+            <polyline points="142,6 152,12 142,18" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground/40" />
+          </svg>
+        </div>
+      );
+
     default:
       return (
         <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-muted-foreground/20 text-[10px] text-muted-foreground/30">
@@ -498,12 +614,16 @@ export function CanvasElementComponent({
 }: {
   element: CanvasElement;
 }) {
-  const { selectedElementId, selectElement } = useWirepadStore();
+  const { selectedElementId, selectElement, updateElement } =
+    useWirepadStore();
   const isSelected = selectedElementId === element.id;
+  const [isEditing, setIsEditing] = useState(false);
+  const isEditable = EDITABLE_TYPES.has(element.type);
 
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: element.id,
+      disabled: isEditing,
       data: {
         type: element.type,
         fromSidebar: false,
@@ -530,6 +650,26 @@ export function CanvasElementComponent({
     selectElement(element.id);
   };
 
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isEditable) {
+        setIsEditing(true);
+      }
+    },
+    [isEditable],
+  );
+
+  const handleCommitText = useCallback(
+    (text: string) => {
+      updateElement(element.id, {
+        properties: { ...element.properties, text },
+      });
+      setIsEditing(false);
+    },
+    [element.id, element.properties, updateElement],
+  );
+
   // Prevent action bar pointer events from starting a drag
   const stopDrag = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -539,19 +679,30 @@ export function CanvasElementComponent({
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
+      {...(isEditing ? {} : listeners)}
       {...attributes}
       onClick={handleClick}
-      className={`cursor-grab rounded-md outline-none active:cursor-grabbing ${
-        isSelected
+      onDoubleClick={handleDoubleClick}
+      className={`rounded-md outline-none ${
+        isEditing
+          ? "cursor-text ring-1 ring-muted-foreground/60"
+          : "cursor-grab active:cursor-grabbing"
+      } ${
+        !isEditing && isSelected
           ? "ring-1 ring-muted-foreground/60"
-          : "ring-0 hover:ring-1 hover:ring-muted-foreground/30"
+          : !isEditing
+            ? "ring-0 hover:ring-1 hover:ring-muted-foreground/30"
+            : ""
       }`}
     >
-      {isSelected && !isDragging && (
+      {isSelected && !isDragging && !isEditing && (
         <ActionBar elementId={element.id} onPointerDown={stopDrag} />
       )}
-      <ElementRenderer element={element} />
+      <ElementRenderer
+        element={element}
+        isEditing={isEditing}
+        onCommitText={handleCommitText}
+      />
     </div>
   );
 }

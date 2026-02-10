@@ -40,6 +40,11 @@ import {
   MessageSquare,
   ShieldCheck,
   Activity,
+  Square,
+  CircleDot,
+  SquareIcon,
+  MoveHorizontal,
+  ArrowRight,
 } from "lucide-react";
 
 export interface ComponentItem {
@@ -56,6 +61,16 @@ export interface ComponentCategory {
 }
 
 export const COMPONENT_CATEGORIES: ComponentCategory[] = [
+  {
+    name: "Shapes",
+    items: [
+      { type: "shape-rectangle", label: "Rectangle", icon: Square, defaultWidth: 120, defaultHeight: 80 },
+      { type: "shape-circle", label: "Circle", icon: CircleDot, defaultWidth: 80, defaultHeight: 80 },
+      { type: "shape-rounded-rect", label: "Rounded Rect", icon: SquareIcon, defaultWidth: 120, defaultHeight: 80 },
+      { type: "shape-divider-line", label: "Divider Line", icon: MoveHorizontal, defaultWidth: 200, defaultHeight: 4 },
+      { type: "shape-arrow-line", label: "Arrow Line", icon: ArrowRight, defaultWidth: 160, defaultHeight: 24 },
+    ],
+  },
   {
     name: "Layout",
     items: [

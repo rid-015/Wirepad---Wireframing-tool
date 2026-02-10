@@ -47,6 +47,12 @@ export type ElementType =
   | "block-empty-state"
   | "block-modal"
   | "block-confirmation"
+  // Shapes
+  | "shape-rectangle"
+  | "shape-circle"
+  | "shape-rounded-rect"
+  | "shape-divider-line"
+  | "shape-arrow-line"
   // Legacy aliases
   | "text"
   | "input";
