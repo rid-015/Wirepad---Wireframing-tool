@@ -81,6 +81,7 @@ interface WirepadProject {
 interface WirepadState {
   project: WirepadProject;
   grid: GridSettings;
+  selectedElementId: string | null;
 
   // Screen actions
   addScreen: (name?: string) => void;
@@ -92,7 +93,11 @@ interface WirepadState {
   addElement: (element: CanvasElement) => void;
   updateElement: (id: string, updates: Partial<CanvasElement>) => void;
   removeElement: (id: string) => void;
+  duplicateElement: (id: string) => void;
   clearCanvas: () => void;
+
+  // Selection
+  selectElement: (id: string | null) => void;
 
   // Grid actions
   setGridVisible: (visible: boolean) => void;
@@ -142,6 +147,7 @@ function updateActiveScreenElements(
 
 export const useWirepadStore = create<WirepadState>((set, get) => ({
   project: createDefaultProject(),
+  selectedElementId: null,
   grid: {
     visible: false,
     size: 8,
@@ -223,18 +229,45 @@ export const useWirepadStore = create<WirepadState>((set, get) => ({
   },
 
   removeElement: (id) => {
-    const { project } = get();
+    const { project, selectedElementId } = get();
     const newProject = updateActiveScreenElements(project, (els) =>
       els.filter((el) => el.id !== id)
     );
-    set({ project: newProject });
+    set({
+      project: newProject,
+      selectedElementId: selectedElementId === id ? null : selectedElementId,
+    });
     saveToStorage(newProject);
   },
+
+  duplicateElement: (id) => {
+    const { project } = get();
+    const screen = project.screens.find(
+      (s) => s.id === project.activeScreenId,
+    );
+    const original = screen?.elements.find((el) => el.id === id);
+    if (!original) return;
+    const newEl: CanvasElement = {
+      ...original,
+      id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      x: original.x + 20,
+      y: original.y + 20,
+      properties: { ...original.properties },
+    };
+    const newProject = updateActiveScreenElements(project, (els) => [
+      ...els,
+      newEl,
+    ]);
+    set({ project: newProject, selectedElementId: newEl.id });
+    saveToStorage(newProject);
+  },
+
+  selectElement: (id) => set({ selectedElementId: id }),
 
   clearCanvas: () => {
     const { project } = get();
     const newProject = updateActiveScreenElements(project, () => []);
-    set({ project: newProject });
+    set({ project: newProject, selectedElementId: null });
     saveToStorage(newProject);
   },
 
