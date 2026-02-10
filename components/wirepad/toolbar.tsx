@@ -1,6 +1,7 @@
 "use client";
 
-import { Grid3X3, Trash2 } from "lucide-react";
+import { Grid3X3, Trash2, Download, FileJson } from "lucide-react";
+import { exportCanvasAsPng, exportProjectAsJson } from "@/lib/export";
 import { useWirepadStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,8 +19,14 @@ import {
 } from "@/components/ui/tooltip";
 
 export function Toolbar() {
-  const { grid, setGridVisible, setGridSize, clearCanvas, getActiveScreen } =
-    useWirepadStore();
+  const {
+    grid,
+    setGridVisible,
+    setGridSize,
+    clearCanvas,
+    getActiveScreen,
+    project,
+  } = useWirepadStore();
   const activeScreen = getActiveScreen();
 
   return (
@@ -70,6 +77,42 @@ export function Toolbar() {
               </SelectContent>
             </Select>
           )}
+
+          <div className="mx-1 h-4 w-px bg-border" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={exportCanvasAsPng}
+                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">PNG</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Export canvas as PNG</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => exportProjectAsJson(project)}
+                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <FileJson className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">JSON</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Export project as JSON</p>
+            </TooltipContent>
+          </Tooltip>
 
           <div className="mx-1 h-4 w-px bg-border" />
 
