@@ -19,15 +19,18 @@ function DraggableItem({ item }: { item: ComponentItem }) {
     },
   });
 
+  const Icon = item.icon;
+
   return (
     <button
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`flex w-full items-center rounded px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-grab active:cursor-grabbing ${
+      className={`flex w-full items-center gap-2.5 rounded px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-grab active:cursor-grabbing ${
         isDragging ? "opacity-40" : ""
       }`}
     >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate">{item.label}</span>
     </button>
   );
