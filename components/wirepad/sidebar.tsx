@@ -42,7 +42,7 @@ export function Sidebar() {
   const isSearching = query.trim().length > 0;
 
   return (
-    <aside className="flex h-full w-52 flex-col border-r border-border bg-sidebar">
+    <aside className="flex h-full w-60 flex-col border-r border-border bg-sidebar">
       {/* Search */}
       <div className="px-3 pt-3 pb-2">
         <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
@@ -58,7 +58,7 @@ export function Sidebar() {
       </div>
 
       {/* Component list */}
-      <div className="flex-1 overflow-y-auto px-1 pb-2">
+      <div className="flex-1 overflow-y-auto px-1 pb-2 scrollbar-thin">
         {categories.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-xs text-muted-foreground/40">
             No components found
