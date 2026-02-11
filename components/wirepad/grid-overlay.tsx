@@ -9,15 +9,16 @@ export function GridOverlay() {
 
   const size = grid.size;
 
+  const color = "hsla(0,0%,100%,0.05)";
+
   return (
     <div
       className="pointer-events-none absolute inset-0"
       style={{
-        backgroundImage: `
-          linear-gradient(to right, hsl(0 0% 100% / 0.04) 1px, transparent 1px),
-          linear-gradient(to bottom, hsl(0 0% 100% / 0.04) 1px, transparent 1px)
-        `,
+        backgroundImage: `linear-gradient(to right,${color} 1px,transparent 1px),linear-gradient(to bottom,${color} 1px,transparent 1px)`,
         backgroundSize: `${size}px ${size}px`,
+        backgroundPosition: "0px 0px",
+        imageRendering: "pixelated",
       }}
       aria-hidden="true"
     />
