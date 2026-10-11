@@ -1,26 +1,59 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import {
   DndContext,
+  DragOverlay,
   type DragEndEvent,
+  type DragStartEvent,
+  type Modifier,
   PointerSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import { getEventCoordinates } from "@dnd-kit/utilities";
 import { useWirepadStore } from "@/lib/store";
+import type { ComponentItem } from "@/lib/component-registry";
 import { Toolbar } from "./toolbar";
-import { Sidebar } from "./sidebar";
+import { Sidebar, ComponentPreview } from "./sidebar";
 import { Canvas, CANVAS_WIDTH, CANVAS_HEIGHT } from "./canvas";
 import { ScreenManager } from "./screen-manager";
 
+// Keeps the drag preview centered under the pointer.
+const snapCenterToCursor: Modifier = ({
+  activatorEvent,
+  draggingNodeRect,
+  transform,
+}) => {
+  if (!draggingNodeRect || !activatorEvent) return transform;
+  const coords = getEventCoordinates(activatorEvent);
+  if (!coords) return transform;
+  return {
+    ...transform,
+    x: transform.x + coords.x - draggingNodeRect.left - draggingNodeRect.width / 2,
+    y: transform.y + coords.y - draggingNodeRect.top - draggingNodeRect.height / 2,
+  };
+};
+
 export function Editor() {
+  const [draggingItem, setDraggingItem] = useState<ComponentItem | null>(null);
   const { addElement, updateElement, grid, loadFromStorage } =
     useWirepadStore();
 
   useEffect(() => {
     loadFromStorage();
   }, [loadFromStorage]);
+
+  // Last known pointer position, used to place sidebar drops exactly where
+  // the drag preview is released.
+  const pointer = useRef({ x: 0, y: 0 });
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      pointer.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener("pointermove", onMove);
+    return () => window.removeEventListener("pointermove", onMove);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -39,8 +72,14 @@ export function Editor() {
     [grid.snap, grid.visible, grid.size]
   );
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const data = event.active.data.current;
+    setDraggingItem(data?.fromSidebar ? (data.item as ComponentItem) : null);
+  }, []);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setDraggingItem(null);
       const { active, over, delta } = event;
 
       if (!over || over.id !== "canvas") return;
@@ -55,9 +94,10 @@ export function Editor() {
         const defaultWidth = data.defaultWidth || 120;
         const defaultHeight = data.defaultHeight || 40;
 
-        // Drop at center of canvas by default, offset by delta
-        let x = CANVAS_WIDTH / 2 - defaultWidth / 2 + delta.x;
-        let y = CANVAS_HEIGHT / 2 - defaultHeight / 2 + delta.y;
+        // Drop centered on the pointer, matching the drag preview
+        const rect = canvasContainer.getBoundingClientRect();
+        let x = pointer.current.x - rect.left - defaultWidth / 2;
+        let y = pointer.current.y - rect.top - defaultHeight / 2;
 
         // Clamp within canvas
         x = Math.max(0, Math.min(x, CANVAS_WIDTH - defaultWidth));
@@ -93,7 +133,14 @@ export function Editor() {
   );
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      id="wirepad-dnd"
+      sensors={sensors}
+      autoScroll={false}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setDraggingItem(null)}
+    >
       <div className="flex h-screen flex-col">
         <Toolbar />
         <div className="flex flex-1 overflow-hidden">
@@ -102,6 +149,17 @@ export function Editor() {
           <ScreenManager />
         </div>
       </div>
+      <DragOverlay modifiers={[snapCenterToCursor]} dropAnimation={null}>
+        {draggingItem && (
+          <div className="opacity-80 drop-shadow-2xl">
+            <ComponentPreview
+              item={draggingItem}
+              maxWidth={draggingItem.defaultWidth}
+              maxHeight={draggingItem.defaultHeight}
+            />
+          </div>
+        )}
+      </DragOverlay>
     </DndContext>
   );
 }

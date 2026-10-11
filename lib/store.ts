@@ -16,7 +16,10 @@ export type ElementType =
   | "toggle"
   | "dropdown"
   | "slider"
+  | "search-bar"
+  | "fab"
   // Navigation
+  | "status-bar"
   | "navbar"
   | "sidebar-nav"
   | "tabs"
@@ -29,6 +32,7 @@ export type ElementType =
   | "image"
   | "avatar"
   | "icon"
+  | "chip"
   // Feedback
   | "toast"
   | "alert"
@@ -79,7 +83,7 @@ interface GridSettings {
   snap: boolean;
 }
 
-interface WirepadProject {
+export interface WirepadProject {
   screens: Screen[];
   activeScreenId: string;
 }

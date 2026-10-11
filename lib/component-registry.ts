@@ -1,148 +1,106 @@
 import type { ElementType } from "./store";
-import type { LucideIcon } from "lucide-react";
-import {
-  RectangleHorizontal,
-  Rows3,
-  CreditCard,
-  Minus,
-  List,
-  MousePointerClick,
-  TextCursorInput,
-  AlignLeft,
-  CheckSquare,
-  Circle,
-  ToggleRight,
-  ChevronDown,
-  SlidersHorizontal,
-  PanelTop,
-  PanelLeft,
-  Columns3,
-  MoreHorizontal,
-  ChevronsLeftRight,
-  Dock,
-  Heading,
-  Type,
-  ImageIcon,
-  UserCircle,
-  Sparkles,
-  Bell,
-  AlertTriangle,
-  Loader,
-  BarChart3,
-  Table2,
-  ListOrdered,
-  LayoutDashboard,
-  LogIn,
-  UserPlus,
-  Settings,
-  User,
-  Inbox,
-  MessageSquare,
-  ShieldCheck,
-  Activity,
-  Square,
-  CircleDot,
-  SquareIcon,
-  MoveHorizontal,
-  ArrowRight,
-} from "lucide-react";
 
 export interface ComponentItem {
   type: ElementType;
   label: string;
-  icon: LucideIcon;
   defaultWidth: number;
   defaultHeight: number;
+  /** Extra search terms beyond the label. */
+  keywords?: string[];
 }
 
 export interface ComponentCategory {
   name: string;
   items: ComponentItem[];
+  /** Start collapsed in the sidebar. */
+  collapsed?: boolean;
 }
 
+// Section, Divider, Rounded Rect, Sidebar Nav, Breadcrumb and Pagination are
+// no longer offered in the palette (redundant or desktop-only on a phone
+// canvas), but remain valid ElementTypes so saved projects still render.
 export const COMPONENT_CATEGORIES: ComponentCategory[] = [
   {
-    name: "Shapes",
+    name: "Basics",
     items: [
-      { type: "shape-rectangle", label: "Rectangle", icon: Square, defaultWidth: 120, defaultHeight: 80 },
-      { type: "shape-circle", label: "Circle", icon: CircleDot, defaultWidth: 80, defaultHeight: 80 },
-      { type: "shape-rounded-rect", label: "Rounded Rect", icon: SquareIcon, defaultWidth: 120, defaultHeight: 80 },
-      { type: "shape-divider-line", label: "Divider Line", icon: MoveHorizontal, defaultWidth: 200, defaultHeight: 4 },
-      { type: "shape-arrow-line", label: "Arrow Line", icon: ArrowRight, defaultWidth: 160, defaultHeight: 24 },
+      { type: "heading", label: "Heading", defaultWidth: 200, defaultHeight: 32, keywords: ["title", "text"] },
+      { type: "paragraph", label: "Paragraph", defaultWidth: 300, defaultHeight: 60, keywords: ["text", "body", "copy"] },
+      { type: "shape-rectangle", label: "Rectangle", defaultWidth: 120, defaultHeight: 80, keywords: ["box", "square", "shape"] },
+      { type: "shape-circle", label: "Circle", defaultWidth: 80, defaultHeight: 80, keywords: ["ellipse", "shape"] },
+      { type: "shape-divider-line", label: "Line", defaultWidth: 200, defaultHeight: 4, keywords: ["divider", "separator", "rule"] },
+      { type: "shape-arrow-line", label: "Arrow", defaultWidth: 160, defaultHeight: 24, keywords: ["flow", "connector"] },
     ],
   },
   {
     name: "Layout",
     items: [
-      { type: "container", label: "Container", icon: RectangleHorizontal, defaultWidth: 335, defaultHeight: 200 },
-      { type: "section", label: "Section", icon: Rows3, defaultWidth: 335, defaultHeight: 120 },
-      { type: "card", label: "Card", icon: CreditCard, defaultWidth: 240, defaultHeight: 140 },
-      { type: "divider", label: "Divider", icon: Minus, defaultWidth: 335, defaultHeight: 8 },
-      { type: "list-item", label: "List Item", icon: List, defaultWidth: 335, defaultHeight: 48 },
+      { type: "container", label: "Container", defaultWidth: 335, defaultHeight: 200, keywords: ["group", "section", "frame"] },
+      { type: "card", label: "Card", defaultWidth: 240, defaultHeight: 160, keywords: ["tile", "panel"] },
+      { type: "list-item", label: "List Item", defaultWidth: 335, defaultHeight: 56, keywords: ["row", "cell"] },
     ],
   },
   {
     name: "Inputs",
     items: [
-      { type: "button", label: "Button", icon: MousePointerClick, defaultWidth: 120, defaultHeight: 40 },
-      { type: "text-input", label: "Text Input", icon: TextCursorInput, defaultWidth: 200, defaultHeight: 40 },
-      { type: "textarea", label: "Text Area", icon: AlignLeft, defaultWidth: 200, defaultHeight: 80 },
-      { type: "checkbox", label: "Checkbox", icon: CheckSquare, defaultWidth: 140, defaultHeight: 24 },
-      { type: "radio", label: "Radio Button", icon: Circle, defaultWidth: 140, defaultHeight: 24 },
-      { type: "toggle", label: "Toggle Switch", icon: ToggleRight, defaultWidth: 48, defaultHeight: 24 },
-      { type: "dropdown", label: "Dropdown", icon: ChevronDown, defaultWidth: 200, defaultHeight: 40 },
-      { type: "slider", label: "Slider", icon: SlidersHorizontal, defaultWidth: 200, defaultHeight: 24 },
+      { type: "button", label: "Button", defaultWidth: 140, defaultHeight: 44, keywords: ["cta", "action"] },
+      { type: "fab", label: "FAB", defaultWidth: 56, defaultHeight: 56, keywords: ["floating action button", "add", "plus"] },
+      { type: "text-input", label: "Text Field", defaultWidth: 280, defaultHeight: 44, keywords: ["input", "form"] },
+      { type: "search-bar", label: "Search Bar", defaultWidth: 335, defaultHeight: 44, keywords: ["find", "query"] },
+      { type: "textarea", label: "Text Area", defaultWidth: 280, defaultHeight: 96, keywords: ["multiline", "comment"] },
+      { type: "dropdown", label: "Dropdown", defaultWidth: 280, defaultHeight: 44, keywords: ["select", "picker", "menu"] },
+      { type: "checkbox", label: "Checkbox", defaultWidth: 140, defaultHeight: 24, keywords: ["check", "tick"] },
+      { type: "radio", label: "Radio", defaultWidth: 140, defaultHeight: 24, keywords: ["option", "choice"] },
+      { type: "toggle", label: "Toggle", defaultWidth: 48, defaultHeight: 28, keywords: ["switch"] },
+      { type: "slider", label: "Slider", defaultWidth: 240, defaultHeight: 24, keywords: ["range"] },
     ],
   },
   {
     name: "Navigation",
     items: [
-      { type: "navbar", label: "Navbar", icon: PanelTop, defaultWidth: 335, defaultHeight: 48 },
-      { type: "sidebar-nav", label: "Sidebar Nav", icon: PanelLeft, defaultWidth: 200, defaultHeight: 300 },
-      { type: "tabs", label: "Tabs", icon: Columns3, defaultWidth: 300, defaultHeight: 36 },
-      { type: "breadcrumb", label: "Breadcrumb", icon: MoreHorizontal, defaultWidth: 240, defaultHeight: 20 },
-      { type: "pagination", label: "Pagination", icon: ChevronsLeftRight, defaultWidth: 240, defaultHeight: 32 },
-      { type: "bottom-nav", label: "Bottom Nav", icon: Dock, defaultWidth: 335, defaultHeight: 56 },
+      { type: "status-bar", label: "Status Bar", defaultWidth: 375, defaultHeight: 32, keywords: ["time", "battery", "system"] },
+      { type: "navbar", label: "Top Bar", defaultWidth: 375, defaultHeight: 52, keywords: ["navbar", "header", "app bar"] },
+      { type: "tabs", label: "Tabs", defaultWidth: 335, defaultHeight: 40, keywords: ["segmented"] },
+      { type: "bottom-nav", label: "Tab Bar", defaultWidth: 375, defaultHeight: 64, keywords: ["bottom nav", "footer"] },
     ],
   },
   {
     name: "Content",
     items: [
-      { type: "heading", label: "Heading", icon: Heading, defaultWidth: 200, defaultHeight: 32 },
-      { type: "paragraph", label: "Paragraph", icon: Type, defaultWidth: 300, defaultHeight: 60 },
-      { type: "image", label: "Image", icon: ImageIcon, defaultWidth: 160, defaultHeight: 120 },
-      { type: "avatar", label: "Avatar", icon: UserCircle, defaultWidth: 40, defaultHeight: 40 },
-      { type: "icon", label: "Icon", icon: Sparkles, defaultWidth: 24, defaultHeight: 24 },
+      { type: "image", label: "Image", defaultWidth: 200, defaultHeight: 140, keywords: ["photo", "picture", "media"] },
+      { type: "avatar", label: "Avatar", defaultWidth: 48, defaultHeight: 48, keywords: ["user", "profile", "person"] },
+      { type: "icon", label: "Icon", defaultWidth: 24, defaultHeight: 24, keywords: ["symbol", "star"] },
+      { type: "chip", label: "Chip", defaultWidth: 88, defaultHeight: 32, keywords: ["tag", "badge", "pill", "filter"] },
     ],
   },
   {
     name: "Feedback",
     items: [
-      { type: "toast", label: "Toast", icon: Bell, defaultWidth: 280, defaultHeight: 56 },
-      { type: "alert", label: "Alert", icon: AlertTriangle, defaultWidth: 300, defaultHeight: 64 },
-      { type: "progress", label: "Progress Bar", icon: Activity, defaultWidth: 240, defaultHeight: 8 },
-      { type: "skeleton", label: "Skeleton", icon: Loader, defaultWidth: 240, defaultHeight: 60 },
+      { type: "toast", label: "Toast", defaultWidth: 335, defaultHeight: 48, keywords: ["snackbar", "notification"] },
+      { type: "alert", label: "Alert", defaultWidth: 335, defaultHeight: 72, keywords: ["banner", "warning", "info"] },
+      { type: "progress", label: "Progress", defaultWidth: 240, defaultHeight: 8, keywords: ["loading", "bar"] },
+      { type: "skeleton", label: "Skeleton", defaultWidth: 300, defaultHeight: 60, keywords: ["loading", "placeholder"] },
     ],
   },
   {
-    name: "Data Display",
+    name: "Data",
     items: [
-      { type: "table", label: "Table", icon: Table2, defaultWidth: 320, defaultHeight: 180 },
-      { type: "list", label: "List", icon: ListOrdered, defaultWidth: 300, defaultHeight: 160 },
-      { type: "chart", label: "Chart", icon: BarChart3, defaultWidth: 300, defaultHeight: 180 },
+      { type: "list", label: "List", defaultWidth: 335, defaultHeight: 200, keywords: ["rows", "feed"] },
+      { type: "table", label: "Table", defaultWidth: 335, defaultHeight: 180, keywords: ["grid", "rows", "columns"] },
+      { type: "chart", label: "Chart", defaultWidth: 335, defaultHeight: 200, keywords: ["graph", "bar", "analytics"] },
     ],
   },
   {
-    name: "Prebuilt Blocks",
+    name: "Screens",
+    collapsed: true,
     items: [
-      { type: "block-login", label: "Login Screen", icon: LogIn, defaultWidth: 335, defaultHeight: 400 },
-      { type: "block-signup", label: "Signup Screen", icon: UserPlus, defaultWidth: 335, defaultHeight: 480 },
-      { type: "block-dashboard", label: "Dashboard", icon: LayoutDashboard, defaultWidth: 335, defaultHeight: 600 },
-      { type: "block-settings", label: "Settings", icon: Settings, defaultWidth: 335, defaultHeight: 500 },
-      { type: "block-profile", label: "Profile", icon: User, defaultWidth: 335, defaultHeight: 450 },
-      { type: "block-empty-state", label: "Empty State", icon: Inbox, defaultWidth: 280, defaultHeight: 240 },
-      { type: "block-modal", label: "Modal", icon: MessageSquare, defaultWidth: 300, defaultHeight: 200 },
-      { type: "block-confirmation", label: "Confirm Dialog", icon: ShieldCheck, defaultWidth: 280, defaultHeight: 180 },
+      { type: "block-login", label: "Login", defaultWidth: 335, defaultHeight: 420, keywords: ["sign in", "auth"] },
+      { type: "block-signup", label: "Sign Up", defaultWidth: 335, defaultHeight: 480, keywords: ["register", "auth"] },
+      { type: "block-dashboard", label: "Dashboard", defaultWidth: 335, defaultHeight: 600, keywords: ["home", "overview"] },
+      { type: "block-settings", label: "Settings", defaultWidth: 335, defaultHeight: 360, keywords: ["preferences"] },
+      { type: "block-profile", label: "Profile", defaultWidth: 335, defaultHeight: 460, keywords: ["account", "user"] },
+      { type: "block-empty-state", label: "Empty State", defaultWidth: 300, defaultHeight: 260, keywords: ["no results", "zero"] },
+      { type: "block-modal", label: "Modal", defaultWidth: 315, defaultHeight: 200, keywords: ["dialog", "sheet", "popup"] },
+      { type: "block-confirmation", label: "Confirm", defaultWidth: 300, defaultHeight: 220, keywords: ["dialog", "delete", "are you sure"] },
     ],
   },
 ];
@@ -154,11 +112,14 @@ export function getAllComponents(): ComponentItem[] {
 export function searchComponents(query: string): ComponentCategory[] {
   if (!query.trim()) return COMPONENT_CATEGORIES;
 
-  const lower = query.toLowerCase();
+  const lower = query.trim().toLowerCase();
   return COMPONENT_CATEGORIES.map((category) => ({
     ...category,
-    items: category.items.filter((item) =>
-      item.label.toLowerCase().includes(lower)
+    items: category.items.filter(
+      (item) =>
+        item.label.toLowerCase().includes(lower) ||
+        category.name.toLowerCase().includes(lower) ||
+        item.keywords?.some((k) => k.includes(lower))
     ),
   })).filter((category) => category.items.length > 0);
 }
