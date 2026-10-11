@@ -1,855 +1,177 @@
-"use client";
+import { createElement as h, type CSSProperties, type ReactNode } from "react";
+import type { WireElement } from "@/lib/component-registry";
+import { Icon } from "./icon";
 
-import type React from "react";
-import { useState, useRef, useCallback } from "react";
-import type { CanvasElement } from "@/lib/store";
-import { useWirepadStore } from "@/lib/store";
-import { useDraggable } from "@dnd-kit/core";
-import { Trash2, Copy } from "lucide-react";
+const BW = "1.5px";
+const INK = "#2b2b2b", SOFT = "#a3a29c", FILL = "#ebeae4", LINE = "#d8d7d0", PAPER = "#fffefa";
 
-const EDITABLE_TYPES = new Set(["heading", "text", "paragraph", "button"]);
-const SHAPE_TYPES = new Set([
-  "shape-rectangle",
-  "shape-circle",
-  "shape-rounded-rect",
-  "shape-divider-line",
-  "shape-arrow-line",
-]);
-const MIN_SIZE = 8;
+type Child = ReactNode;
 
-function getDefaultText(type: string): string {
-  switch (type) {
-    case "heading":
-    case "text":
-      return "Heading";
-    case "paragraph":
-      return "Paragraph text goes here. Double-click to edit.";
-    case "button":
-      return "Button";
-    default:
-      return "";
-  }
-}
+/** Draws one wireframe element filling its positioned box. Built with createElement to keep variadic children key-free. */
+export function renderElement(el: WireElement): ReactNode {
+  const W = el.w, H = el.h, p = el.props || {};
+  const I = (n: string, s = 16, c = INK, w = 2) => h(Icon, { name: n, size: s, color: c, strokeWidth: w });
+  const d = (style: CSSProperties, ...ch: Child[]) => h("div", { style }, ...ch);
+  const fs = (n: number) => Math.round(n * 0.86);
+  const bx = (x: CSSProperties = {}): CSSProperties => ({ boxSizing: "border-box", border: `${BW} solid ${INK}`, borderRadius: 6, ...x });
+  const bs = (x: CSSProperties = {}): CSSProperties => ({ boxSizing: "border-box", border: `${BW} solid ${INK}`, borderRadius: 3, ...x });
+  const full: CSSProperties = { position: "absolute", inset: 0, boxSizing: "border-box" };
+  const fc: CSSProperties = { display: "flex", alignItems: "center" };
+  const ln = (w: string, x: CSSProperties = {}) => d({ height: 6, width: w, background: LINE, borderRadius: 3, flexShrink: 0, ...x });
+  const tx = (t: Child, x: CSSProperties = {}) => d({ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, ...x }, t);
+  const its = () => String(p.items ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const xl = (c = SOFT) =>
+    h("svg", { style: { position: "absolute", inset: 0, width: "100%", height: "100%" }, preserveAspectRatio: "none", viewBox: "0 0 100 100" },
+      h("line", { x1: 0, y1: 0, x2: 100, y2: 100, stroke: c, strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" }),
+      h("line", { x1: 100, y1: 0, x2: 0, y2: 100, stroke: c, strokeWidth: 1.5, vectorEffect: "non-scaling-stroke" }));
+  const btn = (t: string, pri?: boolean, x: CSSProperties = {}) =>
+    d({ ...bx({ background: pri ? INK : "transparent", color: pri ? PAPER : INK }), ...fc, justifyContent: "center", padding: "0 16px", height: 36, fontSize: fs(15), whiteSpace: "nowrap", ...x }, t);
+  const on = !!p.on;
 
-function EditableText({
-  value,
-  onCommit,
-  multiline,
-  className,
-}: {
-  value: string;
-  onCommit: (text: string) => void;
-  multiline?: boolean;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  const handleBlur = () => {
-    const text = ref.current?.innerText?.trim() || value;
-    onCommit(text);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !multiline) {
-      e.preventDefault();
-      ref.current?.blur();
+  switch (el.type) {
+    case "rect": return d({ ...full, ...bx({ background: p.fill ? FILL : "transparent" }) });
+    case "ellipse": return d({ ...full, border: `${BW} solid ${INK}`, borderRadius: "50%" });
+    case "line": return d({ ...full, ...fc }, d({ height: 2, width: "100%", background: INK, borderRadius: 2 }));
+    case "arrow": return d({ ...full, ...fc }, d({ flex: 1, height: 2, background: INK }), d({ width: 0, height: 0, borderTop: "7px solid transparent", borderBottom: "7px solid transparent", borderLeft: `11.5px solid ${INK}` }));
+    case "divider": return d({ ...full, ...fc }, d({ height: 2, width: "100%", background: LINE }));
+    case "text": return d({ ...full, fontSize: fs(18), lineHeight: 1.25, overflow: "hidden" }, p.text);
+    case "heading": return d({ ...full, fontSize: Math.max(14, Math.round(H * 0.74)), lineHeight: 1.1, fontWeight: 600, letterSpacing: "-0.02em", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }, p.text);
+    case "link": return tx(p.text, { ...full, fontSize: fs(17), textDecoration: "underline" });
+    case "note": return d({ ...full, background: "#f9eca0", padding: 12, fontSize: fs(18), lineHeight: 1.25, boxShadow: "2px 3px 0 rgba(0,0,0,.12)", overflow: "hidden" }, p.text);
+    case "paragraph": {
+      if (p.text) return d({ ...full, fontSize: fs(17), lineHeight: 1.35, color: "#555", overflow: "hidden" }, p.text);
+      const n = Math.max(1, Math.floor((H + 12) / 18)), ws = ["100%", "96%", "99%", "92%"];
+      return d({ ...full, display: "flex", flexDirection: "column", gap: 12, paddingTop: 2, overflow: "hidden" }, ...Array.from({ length: n }, (_, i) => ln(i === n - 1 && n > 1 ? "62%" : ws[i % 4])));
     }
-    // Stop the event from reaching DnD listeners
-    e.stopPropagation();
-  };
-
-  return (
-    <div
-      ref={ref}
-      contentEditable
-      suppressContentEditableWarning
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
-      onPointerDown={(e) => e.stopPropagation()}
-      className={`outline-none cursor-text ${className ?? ""}`}
-    >
-      {value}
-    </div>
-  );
-}
-
-function ElementRenderer({
-  element,
-  isEditing,
-  onCommitText,
-}: {
-  element: CanvasElement;
-  isEditing?: boolean;
-  onCommitText?: (text: string) => void;
-}) {
-  const displayText = element.properties.text || getDefaultText(element.type);
-  switch (element.type) {
-    // --- Layout ---
-    case "container":
-      return (
-        <div className="flex h-full w-full rounded-lg border border-dashed border-muted-foreground/20 bg-muted/10 p-2">
-          <span className="text-[9px] text-muted-foreground/30">Container</span>
-        </div>
-      );
-    case "section":
-      return (
-        <div className="flex h-full w-full flex-col rounded-md border border-muted-foreground/15 bg-muted/10 p-2">
-          <span className="text-[9px] text-muted-foreground/30">Section</span>
-        </div>
-      );
-    case "card":
-      return (
-        <div className="flex h-full w-full flex-col rounded-lg border border-muted-foreground/20 bg-muted/30 p-3">
-          <div className="mb-2 h-2 w-16 rounded bg-muted-foreground/20" />
-          <div className="h-2 w-full rounded bg-muted-foreground/10" />
-          <div className="mt-1 h-2 w-3/4 rounded bg-muted-foreground/10" />
-        </div>
-      );
-    case "divider":
-      return (
-        <div className="flex h-full w-full items-center">
-          <div className="h-px w-full bg-muted-foreground/20" />
-        </div>
-      );
-    case "list-item":
-      return (
-        <div className="flex h-full w-full items-center gap-3 border-b border-muted-foreground/10 px-3">
-          <div className="h-3 w-3 rounded-full bg-muted-foreground/20" />
-          <div className="h-2 flex-1 rounded bg-muted-foreground/15" />
-          <div className="h-2 w-6 rounded bg-muted-foreground/10" />
-        </div>
-      );
-
-    // --- Inputs ---
-    case "button":
-      return isEditing && onCommitText ? (
-        <div className="flex h-full w-full items-center justify-center rounded-md border border-muted-foreground/30 bg-muted/50">
-          <EditableText
-            value={displayText}
-            onCommit={onCommitText}
-            className="text-xs text-muted-foreground text-center"
-          />
-        </div>
-      ) : (
-        <div className="flex h-full w-full items-center justify-center rounded-md border border-muted-foreground/30 bg-muted/50 text-xs text-muted-foreground">
-          {displayText}
-        </div>
-      );
-    case "text-input":
-    case "input":
-      return (
-        <div className="flex h-full w-full items-center rounded-md border border-muted-foreground/30 bg-muted/30 px-2 text-xs text-muted-foreground/50">
-          Input field...
-        </div>
-      );
-    case "textarea":
-      return (
-        <div className="flex h-full w-full rounded-md border border-muted-foreground/30 bg-muted/30 p-2 text-xs text-muted-foreground/50">
-          Text area...
-        </div>
-      );
-    case "checkbox":
-      return (
-        <div className="flex h-full w-full items-center gap-2">
-          <div className="h-3.5 w-3.5 rounded-sm border border-muted-foreground/40" />
-          <span className="text-xs text-muted-foreground">Checkbox</span>
-        </div>
-      );
-    case "radio":
-      return (
-        <div className="flex h-full w-full items-center gap-2">
-          <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/40" />
-          <span className="text-xs text-muted-foreground">Radio</span>
-        </div>
-      );
-    case "toggle":
-      return (
-        <div className="flex h-full w-full items-center">
-          <div className="relative h-5 w-10 rounded-full bg-muted-foreground/20">
-            <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-muted-foreground/40" />
-          </div>
-        </div>
-      );
-    case "dropdown":
-      return (
-        <div className="flex h-full w-full items-center justify-between rounded-md border border-muted-foreground/30 bg-muted/30 px-2 text-xs text-muted-foreground/50">
-          <span>Select...</span>
-          <svg
-            className="h-3 w-3"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </div>
-      );
-    case "slider":
-      return (
-        <div className="flex h-full w-full items-center">
-          <div className="relative h-1 w-full rounded-full bg-muted-foreground/20">
-            <div className="absolute left-0 top-0 h-1 w-2/5 rounded-full bg-muted-foreground/40" />
-            <div className="absolute left-[40%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-muted-foreground/40 bg-muted" />
-          </div>
-        </div>
-      );
-
-    // --- Navigation ---
-    case "navbar":
-      return (
-        <div className="flex h-full w-full items-center justify-between rounded-md border border-muted-foreground/15 bg-muted/30 px-3">
-          <div className="h-2.5 w-12 rounded bg-muted-foreground/25" />
-          <div className="flex gap-3">
-            <div className="h-2 w-8 rounded bg-muted-foreground/15" />
-            <div className="h-2 w-8 rounded bg-muted-foreground/15" />
-            <div className="h-2 w-8 rounded bg-muted-foreground/15" />
-          </div>
-        </div>
-      );
-    case "sidebar-nav":
-      return (
-        <div className="flex h-full w-full flex-col gap-1 rounded-md border border-muted-foreground/15 bg-muted/20 p-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className={`flex items-center gap-2 rounded px-2 py-1.5 ${i === 1 ? "bg-muted/40" : ""}`}
-            >
-              <div className="h-2.5 w-2.5 rounded-sm bg-muted-foreground/20" />
-              <div className="h-2 flex-1 rounded bg-muted-foreground/15" />
-            </div>
-          ))}
-        </div>
-      );
-    case "tabs":
-      return (
-        <div className="flex h-full w-full items-end gap-0 border-b border-muted-foreground/15">
-          {["Tab 1", "Tab 2", "Tab 3"].map((t, i) => (
-            <div
-              key={t}
-              className={`px-3 pb-1.5 text-[10px] ${i === 0 ? "border-b border-muted-foreground/50 text-muted-foreground" : "text-muted-foreground/40"}`}
-            >
-              {t}
-            </div>
-          ))}
-        </div>
-      );
-    case "breadcrumb":
-      return (
-        <div className="flex h-full w-full items-center gap-1 text-[10px] text-muted-foreground/40">
-          <span className="text-muted-foreground/60">Home</span>
-          <span>/</span>
-          <span className="text-muted-foreground/60">Page</span>
-          <span>/</span>
-          <span className="text-muted-foreground">Current</span>
-        </div>
-      );
-    case "pagination":
-      return (
-        <div className="flex h-full w-full items-center justify-center gap-1">
-          {["<", "1", "2", "3", ">"].map((p) => (
-            <div
-              key={p}
-              className={`flex h-6 w-6 items-center justify-center rounded text-[10px] ${p === "2" ? "bg-muted-foreground/20 text-muted-foreground" : "text-muted-foreground/40"}`}
-            >
-              {p}
-            </div>
-          ))}
-        </div>
-      );
-    case "bottom-nav":
-      return (
-        <div className="flex h-full w-full items-center justify-around rounded-md border border-muted-foreground/15 bg-muted/30 px-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <div className="h-4 w-4 rounded bg-muted-foreground/20" />
-              <div className="h-1.5 w-6 rounded bg-muted-foreground/10" />
-            </div>
-          ))}
-        </div>
-      );
-
-    // --- Content ---
-    case "heading":
-    case "text":
-      return isEditing && onCommitText ? (
-        <EditableText
-          value={displayText}
-          onCommit={onCommitText}
-          className="flex h-full w-full items-start text-sm font-medium text-muted-foreground"
-        />
-      ) : (
-        <div className="flex h-full w-full items-start text-sm font-medium text-muted-foreground">
-          {displayText}
-        </div>
-      );
-    case "paragraph":
-      return isEditing && onCommitText ? (
-        <EditableText
-          value={displayText}
-          onCommit={onCommitText}
-          multiline
-          className="h-full w-full text-xs text-muted-foreground/70 leading-relaxed"
-        />
-      ) : (
-        <div className="h-full w-full text-xs text-muted-foreground/70 leading-relaxed">
-          {displayText}
-        </div>
-      );
-    case "image":
-      return (
-        <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-muted-foreground/30 bg-muted/20 text-xs text-muted-foreground/50">
-          <svg
-            className="h-6 w-6 text-muted-foreground/30"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
-            />
-          </svg>
-        </div>
-      );
-    case "avatar":
-      return (
-        <div className="flex h-full w-full items-center justify-center rounded-full bg-muted-foreground/20 text-[9px] text-muted-foreground/50">
-          A
-        </div>
-      );
-    case "icon":
-      return (
-        <div className="flex h-full w-full items-center justify-center rounded bg-muted-foreground/15 text-[8px] text-muted-foreground/40">
-          *
-        </div>
-      );
-
-    // --- Feedback ---
-    case "toast":
-      return (
-        <div className="flex h-full w-full items-center gap-2 rounded-lg border border-muted-foreground/20 bg-muted/40 px-3">
-          <div className="h-3 w-3 rounded-full bg-muted-foreground/25" />
-          <div className="flex flex-1 flex-col gap-1">
-            <div className="h-2 w-20 rounded bg-muted-foreground/20" />
-            <div className="h-1.5 w-32 rounded bg-muted-foreground/10" />
-          </div>
-        </div>
-      );
-    case "alert":
-      return (
-        <div className="flex h-full w-full items-start gap-2 rounded-md border border-muted-foreground/20 bg-muted/30 p-3">
-          <div className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full bg-muted-foreground/25" />
-          <div className="flex flex-col gap-1">
-            <div className="h-2 w-16 rounded bg-muted-foreground/20" />
-            <div className="h-1.5 w-full rounded bg-muted-foreground/10" />
-          </div>
-        </div>
-      );
-    case "progress":
-      return (
-        <div className="flex h-full w-full items-center">
-          <div className="h-1.5 w-full rounded-full bg-muted-foreground/15">
-            <div className="h-1.5 w-3/5 rounded-full bg-muted-foreground/35" />
-          </div>
-        </div>
-      );
-    case "skeleton":
-      return (
-        <div className="flex h-full w-full flex-col gap-2 rounded-md p-2">
-          <div className="h-3 w-2/3 animate-pulse rounded bg-muted-foreground/10" />
-          <div className="h-2 w-full animate-pulse rounded bg-muted-foreground/8" />
-          <div className="h-2 w-4/5 animate-pulse rounded bg-muted-foreground/8" />
-        </div>
-      );
-
-    // --- Data Display ---
-    case "table":
-      return (
-        <div className="flex h-full w-full flex-col overflow-hidden rounded-md border border-muted-foreground/15">
-          <div className="flex gap-2 border-b border-muted-foreground/15 bg-muted/30 px-2 py-1.5">
-            <div className="h-2 w-16 rounded bg-muted-foreground/20" />
-            <div className="h-2 w-20 rounded bg-muted-foreground/20" />
-            <div className="h-2 w-12 rounded bg-muted-foreground/20" />
-          </div>
-          {[1, 2, 3, 4].map((r) => (
-            <div
-              key={r}
-              className="flex gap-2 border-b border-muted-foreground/8 px-2 py-1.5 last:border-0"
-            >
-              <div className="h-2 w-16 rounded bg-muted-foreground/10" />
-              <div className="h-2 w-20 rounded bg-muted-foreground/10" />
-              <div className="h-2 w-12 rounded bg-muted-foreground/10" />
-            </div>
-          ))}
-        </div>
-      );
+    case "button": return d({ ...full, ...bx({ background: INK, color: PAPER }), ...fc, justifyContent: "center", fontSize: fs(17), overflow: "hidden" }, p.text);
+    case "button2": return d({ ...full, ...bx(), ...fc, justifyContent: "center", fontSize: fs(17), overflow: "hidden" }, p.text);
+    case "input": return d({ ...full, ...bx(), ...fc, padding: "0 14px", color: SOFT, fontSize: fs(17) }, tx(p.text));
+    case "textarea": return d({ ...full, ...bx(), padding: "10px 14px", color: SOFT, fontSize: fs(17), overflow: "hidden" }, p.text);
+    case "search": return d({ ...full, ...bx(), ...fc, gap: 10, padding: "0 14px", color: SOFT, fontSize: fs(17) }, I("Search", 18, SOFT), tx(p.text));
+    case "select": return d({ ...full, ...bx(), ...fc, gap: 8, padding: "0 12px 0 14px", fontSize: fs(17) }, tx(p.text, { flex: 1 }), I("ChevronDown", 18));
+    case "checkbox": {
+      const s = Math.min(20, H);
+      return d({ ...full, ...fc, gap: 10, fontSize: fs(17) }, d({ ...bs({ width: s, height: s, background: on ? INK : "transparent" }), ...fc, justifyContent: "center", flexShrink: 0 }, on ? I("Check", s - 6, PAPER, 3) : null), tx(p.text));
+    }
+    case "radio": {
+      const s = Math.min(20, H);
+      return d({ ...full, ...fc, gap: 10, fontSize: fs(17) }, d({ width: s, height: s, boxSizing: "border-box", border: `${BW} solid ${INK}`, borderRadius: "50%", ...fc, justifyContent: "center", flexShrink: 0 }, on ? d({ width: s - 10, height: s - 10, borderRadius: "50%", background: INK }) : null), tx(p.text));
+    }
+    case "toggle": {
+      const k = H - 10;
+      return d({ ...full, border: `${BW} solid ${INK}`, borderRadius: H, background: on ? INK : "transparent" }, d({ position: "absolute", top: 3, left: on ? W - k - 7 : 3, width: k, height: k, borderRadius: "50%", background: on ? PAPER : INK }));
+    }
+    case "slider": {
+      const pc = Math.max(0, Math.min(100, +p.value || 0));
+      return d({ ...full, ...fc }, d({ position: "relative", width: "100%", height: 4, background: LINE, borderRadius: 2 },
+        d({ position: "absolute", left: 0, top: 0, bottom: 0, width: pc + "%", background: INK, borderRadius: 2 }),
+        d({ position: "absolute", left: `calc(${pc}% - 9px)`, top: -7, width: 18, height: 18, boxSizing: "border-box", borderRadius: "50%", background: PAPER, border: `${BW} solid ${INK}` })));
+    }
+    case "progress": {
+      const pc = Math.max(0, Math.min(100, +p.value || 0));
+      return d({ ...full, border: `${BW} solid ${INK}`, borderRadius: H, overflow: "hidden" }, d({ height: "100%", width: pc + "%", background: INK }));
+    }
+    case "badge": return d({ ...full, border: `${BW} solid ${INK}`, borderRadius: H, ...fc, justifyContent: "center", fontSize: fs(14) }, p.text);
+    case "navbar": {
+      const small = W < 600;
+      return d({ ...full, ...fc, gap: 24, padding: "0 24px", borderBottom: `${BW} solid ${INK}` },
+        d({ ...bs({ width: 28, height: 28, background: FILL }), flexShrink: 0 }), tx(p.text, { fontWeight: 700, fontSize: fs(20), flexShrink: 0 }), d({ flex: 1 }),
+        small ? I("Menu", 24) : d({ display: "flex", gap: 28, overflow: "hidden", fontSize: fs(17) }, ...its().map((t) => tx(t))),
+        small ? null : btn("Sign up", true));
+    }
+    case "sidebar": {
+      const ic = ["LayoutDashboard|LayoutGrid", "Folder", "MessageSquare", "Calendar", "Settings", "Users", "ChartColumn|BarChart3", "Bell"];
+      return d({ ...full, borderRight: `${BW} solid ${INK}`, background: "#f7f6f1", padding: 18, display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" },
+        d({ ...fc, gap: 10, marginBottom: 16 }, d({ ...bs({ width: 28, height: 28, background: FILL }) }), tx(p.text, { fontWeight: 700, fontSize: fs(20) })),
+        ...its().map((t, i) => d({ ...fc, gap: 12, padding: "8px 10px", borderRadius: 5, background: i === 0 ? FILL : "transparent", border: i === 0 ? `${BW} solid ${INK}` : "2px solid transparent", fontSize: fs(17) }, I(ic[i % ic.length], 18), tx(t))));
+    }
+    case "tabs": return d({ ...full, display: "flex", alignItems: "flex-end", gap: 28, borderBottom: `2px solid ${LINE}`, overflow: "hidden" },
+      ...its().map((t, i) => d({ paddingBottom: 8, marginBottom: -2, fontSize: fs(17), whiteSpace: "nowrap", color: i === 0 ? INK : "#8a8984", borderBottom: `3px solid ${i === 0 ? INK : "transparent"}` }, t)));
+    case "breadcrumb": {
+      const a = its();
+      return d({ ...full, ...fc, gap: 8, fontSize: fs(16), overflow: "hidden", whiteSpace: "nowrap" },
+        ...a.flatMap((t, i) => [d({ color: i === a.length - 1 ? INK : "#8a8984", fontWeight: i === a.length - 1 ? 700 : 400 }, t), i < a.length - 1 ? d({ color: SOFT }, "/") : null]));
+    }
+    case "pagination": return d({ ...full, ...fc, gap: 6, justifyContent: "center" },
+      ...["‹", "1", "2", "3", "…", "9", "›"].map((t, i) => d({ ...bs({ width: Math.min(H, 34), height: Math.min(H, 34), background: i === 1 ? INK : "transparent", color: i === 1 ? PAPER : INK, borderColor: t === "…" ? "transparent" : INK }), ...fc, justifyContent: "center", fontSize: fs(15) }, t)));
+    case "footer": {
+      const n = W > 600 ? 4 : 2;
+      return d({ ...full, borderTop: `${BW} solid ${INK}`, padding: "24px " + (W > 600 ? 80 : 16) + "px", display: "flex", gap: 32 },
+        ...Array.from({ length: n }, () => d({ flex: 1, display: "flex", flexDirection: "column", gap: 12 }, ln("50%", { background: "#bdbcb5", height: 8 }), ln("70%"), ln("60%"), ln("40%"))));
+    }
+    case "card": return d({ ...full, ...bx(), overflow: "hidden", display: "flex", flexDirection: "column" },
+      d({ position: "relative", height: "50%", borderBottom: `${BW} solid ${INK}`, background: FILL, flexShrink: 0 }, xl()),
+      d({ padding: 14, display: "flex", flexDirection: "column", gap: 10, minHeight: 0 }, tx(p.text, { fontSize: fs(19), fontWeight: 700 }), ln("95%"), ln("78%"), ln("50%")));
     case "list":
-      return (
-        <div className="flex h-full w-full flex-col rounded-md border border-muted-foreground/15">
-          {[1, 2, 3, 4].map((r) => (
-            <div
-              key={r}
-              className="flex items-center gap-2 border-b border-muted-foreground/8 px-3 py-2 last:border-0"
-            >
-              <div className="h-2.5 w-2.5 rounded-full bg-muted-foreground/20" />
-              <div className="h-2 flex-1 rounded bg-muted-foreground/12" />
-            </div>
-          ))}
-        </div>
-      );
-    case "chart":
-      return (
-        <div className="flex h-full w-full items-end justify-around gap-1 rounded-md border border-muted-foreground/15 bg-muted/10 p-3 pb-2">
-          {[40, 65, 35, 80, 55, 70, 45].map((h, i) => (
-            <div
-              key={i}
-              className="flex-1 rounded-t bg-muted-foreground/20"
-              style={{ height: `${h}%` }}
-            />
-          ))}
-        </div>
-      );
-
-    // --- Prebuilt Blocks ---
-    case "block-login":
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border border-muted-foreground/15 bg-muted/10 p-6">
-          <div className="h-3 w-16 rounded bg-muted-foreground/25" />
-          <div className="h-8 w-full rounded-md border border-muted-foreground/20 bg-muted/20" />
-          <div className="h-8 w-full rounded-md border border-muted-foreground/20 bg-muted/20" />
-          <div className="h-8 w-full rounded-md bg-muted-foreground/20" />
-          <div className="h-2 w-20 rounded bg-muted-foreground/10" />
-        </div>
-      );
-    case "block-signup":
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border border-muted-foreground/15 bg-muted/10 p-6">
-          <div className="h-3 w-20 rounded bg-muted-foreground/25" />
-          <div className="h-8 w-full rounded-md border border-muted-foreground/20 bg-muted/20" />
-          <div className="h-8 w-full rounded-md border border-muted-foreground/20 bg-muted/20" />
-          <div className="h-8 w-full rounded-md border border-muted-foreground/20 bg-muted/20" />
-          <div className="h-8 w-full rounded-md bg-muted-foreground/20" />
-          <div className="h-2 w-24 rounded bg-muted-foreground/10" />
-        </div>
-      );
-    case "block-dashboard":
-      return (
-        <div className="flex h-full w-full flex-col gap-3 rounded-lg border border-muted-foreground/15 bg-muted/10 p-3">
-          <div className="flex gap-2">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="flex flex-1 flex-col gap-1 rounded-md border border-muted-foreground/10 p-2"
-              >
-                <div className="h-1.5 w-8 rounded bg-muted-foreground/15" />
-                <div className="h-3 w-12 rounded bg-muted-foreground/20" />
-              </div>
-            ))}
-          </div>
-          <div className="flex-1 rounded-md border border-muted-foreground/10 p-2">
-            <div className="flex h-full items-end justify-around gap-1">
-              {[50, 70, 40, 85, 60].map((h, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-t bg-muted-foreground/15"
-                  style={{ height: `${h}%` }}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1 rounded-md border border-muted-foreground/10 p-2">
-              <div className="h-2 w-16 rounded bg-muted-foreground/15" />
-            </div>
-            <div className="flex-1 rounded-md border border-muted-foreground/10 p-2">
-              <div className="h-2 w-16 rounded bg-muted-foreground/15" />
-            </div>
-          </div>
-        </div>
-      );
-    case "block-settings":
-      return (
-        <div className="flex h-full w-full flex-col gap-3 rounded-lg border border-muted-foreground/15 bg-muted/10 p-4">
-          <div className="h-3 w-16 rounded bg-muted-foreground/25" />
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between border-b border-muted-foreground/8 pb-2"
-            >
-              <div className="h-2 w-20 rounded bg-muted-foreground/15" />
-              <div className="h-5 w-9 rounded-full bg-muted-foreground/15" />
-            </div>
-          ))}
-        </div>
-      );
-    case "block-profile":
-      return (
-        <div className="flex h-full w-full flex-col items-center gap-3 rounded-lg border border-muted-foreground/15 bg-muted/10 p-4">
-          <div className="h-12 w-12 rounded-full bg-muted-foreground/20" />
-          <div className="h-3 w-20 rounded bg-muted-foreground/20" />
-          <div className="h-2 w-32 rounded bg-muted-foreground/10" />
-          <div className="mt-2 w-full space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between border-b border-muted-foreground/8 pb-2"
-              >
-                <div className="h-2 w-16 rounded bg-muted-foreground/12" />
-                <div className="h-2 w-24 rounded bg-muted-foreground/8" />
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    case "block-empty-state":
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-muted-foreground/20 bg-muted/10 p-4">
-          <div className="h-10 w-10 rounded-full bg-muted-foreground/10" />
-          <div className="h-2.5 w-24 rounded bg-muted-foreground/15" />
-          <div className="h-2 w-36 rounded bg-muted-foreground/8" />
-          <div className="mt-1 h-6 w-20 rounded-md bg-muted-foreground/15" />
-        </div>
-      );
-    case "block-modal":
-      return (
-        <div className="flex h-full w-full flex-col rounded-lg border border-muted-foreground/20 bg-muted/30 p-4">
-          <div className="mb-3 h-3 w-20 rounded bg-muted-foreground/25" />
-          <div className="mb-1 h-2 w-full rounded bg-muted-foreground/10" />
-          <div className="mb-4 h-2 w-3/4 rounded bg-muted-foreground/10" />
-          <div className="mt-auto flex justify-end gap-2">
-            <div className="h-6 w-14 rounded-md border border-muted-foreground/20" />
-            <div className="h-6 w-14 rounded-md bg-muted-foreground/20" />
-          </div>
-        </div>
-      );
-    case "block-confirmation":
-      return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border border-muted-foreground/20 bg-muted/30 p-4">
-          <div className="h-8 w-8 rounded-full bg-muted-foreground/15" />
-          <div className="h-2.5 w-24 rounded bg-muted-foreground/20" />
-          <div className="h-2 w-36 rounded bg-muted-foreground/10" />
-          <div className="flex gap-2">
-            <div className="h-6 w-16 rounded-md border border-muted-foreground/20" />
-            <div className="h-6 w-16 rounded-md bg-muted-foreground/20" />
-          </div>
-        </div>
-      );
-
-    // --- Shapes ---
-    case "shape-rectangle":
-      return (
-        <div className="h-full w-full border border-muted-foreground/40 bg-muted-foreground/5" />
-      );
-    case "shape-circle":
-      return (
-        <div className="h-full w-full rounded-full border border-muted-foreground/40 bg-muted-foreground/5" />
-      );
-    case "shape-rounded-rect":
-      return (
-        <div className="h-full w-full rounded-xl border border-muted-foreground/40 bg-muted-foreground/5" />
-      );
-    case "shape-divider-line":
-      return (
-        <div className="flex h-full w-full items-center">
-          <div className="h-px w-full bg-muted-foreground/40" />
-        </div>
-      );
-    case "shape-arrow-line":
-      return (
-        <div className="flex h-full w-full items-center">
-          <svg className="h-full w-full" viewBox="0 0 160 24" preserveAspectRatio="none" aria-hidden="true">
-            <line x1="4" y1="12" x2="148" y2="12" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground/40" />
-            <polyline points="142,6 152,12 142,18" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground/40" />
-          </svg>
-        </div>
-      );
-
-    default:
-      return (
-        <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-muted-foreground/20 text-[10px] text-muted-foreground/30">
-          {element.type}
-        </div>
-      );
+    case "listitem": {
+      const n = el.type === "list" ? Math.max(1, Math.floor(H / 60)) : 1, rh = el.type === "list" ? 60 : H;
+      return d({ ...full, overflow: "hidden" }, ...Array.from({ length: n }, (_, i) => d({ ...fc, gap: 12, height: rh, borderBottom: `1.5px solid ${LINE}`, padding: "0 4px", boxSizing: "border-box" },
+        d({ width: 36, height: 36, boxSizing: "border-box", border: `${BW} solid ${INK}`, borderRadius: "50%", background: FILL, flexShrink: 0 }),
+        d({ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }, p.text ? tx(p.text, { fontSize: fs(17) }) : ln(["55%", "40%", "62%"][i % 3], { background: "#bdbcb5" }), ln(["80%", "70%", "75%"][i % 3])),
+        I("ChevronRight", 18, SOFT))));
+    }
+    case "stat": return d({ ...full, ...bx(), padding: 18, display: "flex", flexDirection: "column", justifyContent: "center", gap: 6, overflow: "hidden" },
+      tx(p.text, { fontSize: fs(16), color: "#77766f" }), tx(p.value, { fontSize: fs(32), fontWeight: 700, lineHeight: 1.1 }), ln("40%", { marginTop: 4 }));
+    case "table": {
+      const c = its(), n = Math.max(1, Math.floor((H - 42) / 38));
+      return d({ ...full, ...bx(), overflow: "hidden", display: "flex", flexDirection: "column" },
+        d({ display: "flex", height: 40, flexShrink: 0, background: FILL, borderBottom: `${BW} solid ${INK}`, alignItems: "center", padding: "0 14px", gap: 16 }, ...c.map((t) => tx(t, { flex: 1, fontSize: fs(16), fontWeight: 700 }))),
+        ...Array.from({ length: n }, (_, r) => d({ display: "flex", height: 38, flexShrink: 0, alignItems: "center", padding: "0 14px", gap: 16, borderBottom: `1.5px solid ${LINE}` },
+          ...c.map((_, j) => d({ flex: 1 }, ln(["70%", "45%", "60%", "35%", "55%"][(r + j) % 5]))))));
+    }
+    case "barchart": return d({ ...full, ...bx(), padding: 16, display: "flex", flexDirection: "column", gap: 12 }, tx(p.text, { fontSize: fs(17), fontWeight: 700 }),
+      d({ flex: 1, display: "flex", alignItems: "flex-end", gap: 10, borderLeft: `${BW} solid ${INK}`, borderBottom: `${BW} solid ${INK}`, padding: "0 8px", minHeight: 0 },
+        ...[40, 65, 50, 85, 60, 75, 45, 92].map((x) => d({ flex: 1, height: x + "%", ...bs({ background: FILL, borderBottom: "none" }) }))));
+    case "linechart": return d({ ...full, ...bx(), padding: 16, display: "flex", flexDirection: "column", gap: 12 }, tx(p.text, { fontSize: fs(17), fontWeight: 700 }),
+      d({ flex: 1, position: "relative", borderLeft: `${BW} solid ${INK}`, borderBottom: `${BW} solid ${INK}`, minHeight: 0 },
+        h("svg", { style: { position: "absolute", inset: 0, width: "100%", height: "100%" }, viewBox: "0 0 100 100", preserveAspectRatio: "none" },
+          h("polyline", { points: "0,80 14,62 28,68 42,40 57,48 71,26 85,32 100,10", fill: "none", stroke: INK, strokeWidth: 2.5, vectorEffect: "non-scaling-stroke", strokeLinejoin: "round" }),
+          h("polyline", { points: "0,90 14,84 28,86 42,72 57,76 71,64 85,68 100,56", fill: "none", stroke: SOFT, strokeWidth: 2, strokeDasharray: "5 4", vectorEffect: "non-scaling-stroke" }))));
+    case "piechart": {
+      const s = Math.min(W, H);
+      return d({ ...full, ...fc, justifyContent: "center" }, d({ width: s, height: s, boxSizing: "border-box", borderRadius: "50%", border: `${BW} solid ${INK}`, background: `conic-gradient(${INK} 0 34%, #9d9c95 0 58%, ${FILL} 0 100%)` }));
+    }
+    case "image": return d({ ...full, ...bx({ background: FILL }), overflow: "hidden" }, xl(),
+      p.text ? d({ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", background: PAPER, padding: "2px 8px", fontSize: fs(15), color: "#77766f", whiteSpace: "nowrap" }, p.text) : null);
+    case "video": return d({ ...full, ...bx({ background: "#3b3b39" }), ...fc, justifyContent: "center", overflow: "hidden" },
+      d({ width: 56, height: 56, borderRadius: "50%", background: PAPER, ...fc, justifyContent: "center" }, d({ width: 0, height: 0, marginLeft: 5, borderTop: "11px solid transparent", borderBottom: "11px solid transparent", borderLeft: `17px solid ${INK}` })),
+      d({ position: "absolute", left: 16, right: 16, bottom: 14, height: 4, background: "#6b6b67", borderRadius: 2 }, d({ width: "35%", height: "100%", background: PAPER, borderRadius: 2 })));
+    case "avatar": {
+      const s = Math.min(W, H);
+      return d({ ...full, border: `${BW} solid ${INK}`, borderRadius: "50%", background: FILL, ...fc, justifyContent: "center", overflow: "hidden" }, I("User", Math.round(s * 0.55), INK));
+    }
+    case "map": return d({ ...full, ...bx({ background: "#efeee7" }), overflow: "hidden", ...fc, justifyContent: "center" },
+      h("svg", { style: { position: "absolute", inset: 0, width: "100%", height: "100%" }, viewBox: "0 0 100 100", preserveAspectRatio: "none" },
+        ...["0,30 40,38 100,20", "20,0 30,50 24,100", "0,75 55,60 100,82", "70,0 62,45 80,100"].map((pt) => h("polyline", { points: pt, fill: "none", stroke: "#d6d5cd", strokeWidth: 7, vectorEffect: "non-scaling-stroke" }))),
+      d({ position: "relative" }, I("MapPin", 34, INK, 2.2)));
+    case "statusbar": return d({ ...full, ...fc, justifyContent: "space-between", padding: "0 26px", fontSize: fs(17), fontWeight: 700 }, "9:41", d({ ...fc, gap: 6 }, I("Signal", 16), I("Wifi", 16), I("BatteryFull|Battery", 20)));
+    case "appbar": return d({ ...full, ...fc, gap: 12, padding: "0 14px", borderBottom: `1.5px solid ${LINE}` }, I("ChevronLeft", 24), tx(p.text, { flex: 1, textAlign: "center", fontSize: fs(19), fontWeight: 700 }), I("Ellipsis|MoreHorizontal", 24));
+    case "tabbar": {
+      const ic = ["House|Home", "Search", "Heart", "User", "Settings"];
+      return d({ ...full, display: "flex", justifyContent: "space-around", alignItems: "flex-start", paddingTop: 10, borderTop: `${BW} solid ${INK}`, background: PAPER },
+        ...its().map((t, i) => d({ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, fontSize: fs(13), color: i === 0 ? INK : "#8a8984" }, I(ic[i % ic.length], 24, i === 0 ? INK : "#8a8984"), t)));
+    }
+    case "homeind": return d({ ...full, ...fc, justifyContent: "center" }, d({ width: 134, height: 5, borderRadius: 3, background: INK }));
+    case "keyboard": {
+      const key = (t: string, x: CSSProperties = {}) => d({ flex: 1, ...bs({ borderWidth: 1.5, background: PAPER }), ...fc, justifyContent: "center", fontSize: fs(16), ...x }, t);
+      return d({ ...full, background: FILL, padding: "10px 4px", display: "flex", flexDirection: "column", gap: 10, borderTop: `${BW} solid ${INK}` },
+        ...["qwertyuiop", "asdfghjkl", "zxcvbnm"].map((r, i) => d({ flex: 1, display: "flex", gap: 5, padding: i === 1 ? "0 18px" : i === 2 ? "0 44px" : 0 }, ...r.split("").map((c) => key(c)))),
+        d({ flex: 1, display: "flex", gap: 5 }, key("123", { flex: 1.3 }), key("space", { flex: 5 }), key("return", { flex: 1.8 })));
+    }
+    case "icon": return d({ ...full, ...fc, justifyContent: "center" }, I(p.icon || "Star", Math.min(W, H), INK, 2));
+    case "modal": return d({ ...full, ...bx({ background: PAPER, boxShadow: `5px 6px 0 ${INK}` }), padding: 20, display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" },
+      d({ ...fc, gap: 8, marginBottom: 4 }, tx(p.text, { flex: 1, fontSize: fs(21), fontWeight: 700 }), I("X", 20)), ln("100%"), ln("94%"), ln("68%"), d({ flex: 1 }),
+      d({ display: "flex", justifyContent: "flex-end", gap: 10 }, btn("Cancel"), btn("Confirm", true)));
+    case "confirm": return d({ ...full, ...bx({ background: PAPER, boxShadow: `5px 6px 0 ${INK}` }), padding: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center", overflow: "hidden" },
+      I("CircleAlert|AlertCircle", 34), tx(p.text, { fontSize: fs(20), fontWeight: 700, maxWidth: "100%" }), ln("85%"), ln("60%"), d({ flex: 1 }),
+      d({ display: "flex", gap: 10, width: "100%" }, btn("Cancel", false, { flex: 1 }), btn("Delete", true, { flex: 1 })));
+    case "alert": return d({ ...full, ...bx({ background: "#f4f3ed" }), ...fc, gap: 14, padding: "0 16px", overflow: "hidden" },
+      I("CircleAlert|AlertCircle", 24), d({ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }, tx(p.text, { fontSize: fs(17), fontWeight: 700 }), ln("80%")));
+    case "toast": return d({ ...full, ...bx({ background: INK, color: PAPER }), ...fc, gap: 12, padding: "0 16px" }, I("CircleCheck|CheckCircle", 20, PAPER), tx(p.text, { flex: 1, fontSize: fs(17) }), I("X", 16, PAPER));
+    case "tooltip": return d({ ...full, display: "flex", flexDirection: "column", alignItems: "center" },
+      d({ flex: 1, width: "100%", ...bs({ background: INK, color: PAPER, borderColor: INK }), ...fc, justifyContent: "center", fontSize: fs(16), padding: "0 10px", overflow: "hidden" }, tx(p.text)),
+      d({ width: 0, height: 0, borderLeft: "8px solid transparent", borderRight: "8px solid transparent", borderTop: `8px solid ${INK}` }));
+    case "scrim": return d({ ...full, background: "rgba(30,30,28,.35)" });
+    default: return d({ ...full, ...bx() });
   }
-}
-
-function ActionBar({
-  elementId,
-  onPointerDown,
-}: {
-  elementId: string;
-  onPointerDown: (e: React.PointerEvent) => void;
-}) {
-  const { removeElement, duplicateElement } = useWirepadStore();
-
-  return (
-    <div
-      className="absolute -top-9 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-0.5 rounded-md border border-border bg-background px-1 py-0.5 shadow-lg shadow-black/30"
-      onPointerDown={onPointerDown}
-    >
-      <button
-        type="button"
-        onClick={() => duplicateElement(elementId)}
-        className="flex items-center justify-center rounded p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        aria-label="Duplicate element"
-      >
-        <Copy className="h-3 w-3" />
-      </button>
-      <div className="mx-0.5 h-3 w-px bg-border" />
-      <button
-        type="button"
-        onClick={() => removeElement(elementId)}
-        className="flex items-center justify-center rounded p-1.5 text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive"
-        aria-label="Delete element"
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
-    </div>
-  );
-}
-
-type ResizeDirection =
-  | "n"
-  | "s"
-  | "e"
-  | "w"
-  | "ne"
-  | "nw"
-  | "se"
-  | "sw";
-
-const HANDLE_POSITIONS: {
-  dir: ResizeDirection;
-  cursor: string;
-  className: string;
-}[] = [
-  {
-    dir: "nw",
-    cursor: "nwse-resize",
-    className: "-top-1 -left-1",
-  },
-  {
-    dir: "ne",
-    cursor: "nesw-resize",
-    className: "-top-1 -right-1",
-  },
-  {
-    dir: "sw",
-    cursor: "nesw-resize",
-    className: "-bottom-1 -left-1",
-  },
-  {
-    dir: "se",
-    cursor: "nwse-resize",
-    className: "-bottom-1 -right-1",
-  },
-  {
-    dir: "n",
-    cursor: "ns-resize",
-    className: "-top-1 left-1/2 -translate-x-1/2",
-  },
-  {
-    dir: "s",
-    cursor: "ns-resize",
-    className: "-bottom-1 left-1/2 -translate-x-1/2",
-  },
-  {
-    dir: "w",
-    cursor: "ew-resize",
-    className: "top-1/2 -left-1 -translate-y-1/2",
-  },
-  {
-    dir: "e",
-    cursor: "ew-resize",
-    className: "top-1/2 -right-1 -translate-y-1/2",
-  },
-];
-
-function ResizeHandles({
-  element,
-  onResizeStart,
-}: {
-  element: CanvasElement;
-  onResizeStart: (dir: ResizeDirection, e: React.PointerEvent) => void;
-}) {
-  return (
-    <>
-      {HANDLE_POSITIONS.map(({ dir, cursor, className }) => (
-        <div
-          key={dir}
-          className={`absolute z-[60] h-2 w-2 rounded-full border border-muted-foreground/60 bg-background ${className}`}
-          style={{ cursor }}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onResizeStart(dir, e);
-          }}
-          role="separator"
-          aria-label={`Resize ${dir}`}
-        />
-      ))}
-    </>
-  );
-}
-
-export function CanvasElementComponent({
-  element,
-}: {
-  element: CanvasElement;
-}) {
-  const { selectedElementId, selectElement, updateElement } =
-    useWirepadStore();
-  const isSelected = selectedElementId === element.id;
-  const [isEditing, setIsEditing] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const isEditable = EDITABLE_TYPES.has(element.type);
-  const isShape = SHAPE_TYPES.has(element.type);
-
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
-      id: element.id,
-      disabled: isEditing || isResizing,
-      data: {
-        type: element.type,
-        fromSidebar: false,
-        element,
-      },
-    });
-
-  const handleResizeStart = useCallback(
-    (dir: ResizeDirection, e: React.PointerEvent) => {
-      setIsResizing(true);
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const startW = element.width;
-      const startH = element.height;
-      const startElX = element.x;
-      const startElY = element.y;
-
-      const onMove = (ev: PointerEvent) => {
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
-
-        let newX = startElX;
-        let newY = startElY;
-        let newW = startW;
-        let newH = startH;
-
-        if (dir.includes("e")) newW = Math.max(MIN_SIZE, startW + dx);
-        if (dir.includes("w")) {
-          newW = Math.max(MIN_SIZE, startW - dx);
-          newX = startElX + (startW - newW);
-        }
-        if (dir.includes("s")) newH = Math.max(MIN_SIZE, startH + dy);
-        if (dir.includes("n")) {
-          newH = Math.max(MIN_SIZE, startH - dy);
-          newY = startElY + (startH - newH);
-        }
-
-        updateElement(element.id, {
-          x: newX,
-          y: newY,
-          width: newW,
-          height: newH,
-        });
-      };
-
-      const onUp = () => {
-        setIsResizing(false);
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-      };
-
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-    },
-    [element.id, element.x, element.y, element.width, element.height, updateElement],
-  );
-
-  const style: React.CSSProperties = {
-    position: "absolute",
-    left: element.x,
-    top: element.y,
-    width: element.width,
-    height: element.height,
-    transform: transform
-      ? `translate(${transform.x}px, ${transform.y}px)`
-      : undefined,
-    zIndex: isDragging ? 50 : isSelected ? 40 : 1,
-    opacity: isDragging ? 0.7 : 1,
-    transition: isDragging ? "none" : "box-shadow 0.15s ease",
-  };
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    selectElement(element.id);
-  };
-
-  const handleDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (isEditable) {
-        setIsEditing(true);
-      }
-    },
-    [isEditable],
-  );
-
-  const handleCommitText = useCallback(
-    (text: string) => {
-      updateElement(element.id, {
-        properties: { ...element.properties, text },
-      });
-      setIsEditing(false);
-    },
-    [element.id, element.properties, updateElement],
-  );
-
-  // Prevent action bar pointer events from starting a drag
-  const stopDrag = (e: React.PointerEvent) => {
-    e.stopPropagation();
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...(isEditing ? {} : listeners)}
-      {...attributes}
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-      className={`rounded-md outline-none ${
-        isEditing
-          ? "cursor-text ring-1 ring-muted-foreground/60"
-          : "cursor-grab active:cursor-grabbing"
-      } ${
-        !isEditing && isSelected
-          ? "ring-1 ring-muted-foreground/60"
-          : !isEditing
-            ? "ring-0 hover:ring-1 hover:ring-muted-foreground/30"
-            : ""
-      }`}
-    >
-      {isSelected && !isDragging && !isEditing && (
-        <ActionBar elementId={element.id} onPointerDown={stopDrag} />
-      )}
-      {isSelected && isShape && !isDragging && (
-        <ResizeHandles element={element} onResizeStart={handleResizeStart} />
-      )}
-      <ElementRenderer
-        element={element}
-        isEditing={isEditing}
-        onCommitText={handleCommitText}
-      />
-    </div>
-  );
 }
