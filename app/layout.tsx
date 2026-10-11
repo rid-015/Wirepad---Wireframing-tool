@@ -1,13 +1,14 @@
 import React from "react"
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
 
-const _inter = Inter({ subsets: ["latin"] });
+const geist = Geist({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-geist" });
+const geistMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Wirepad - Fast Wireframing Tool",
+  title: "Wirepad",
   description:
     "Quickly drag and drop standardized UI components to create wireframes instantly.",
 };
@@ -22,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
       <body className="font-sans antialiased overflow-hidden">
         {children}
       </body>
