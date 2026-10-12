@@ -75,9 +75,3 @@ lib/
 ```
 
 **Built with** Next.js, React, TypeScript, Tailwind CSS, Zustand, html-to-image and Lucide icons.
-
-## Built with v0
-
-This repository is linked to a [v0](https://v0.app) project. You can keep developing there, and v0 will push commits directly to this repo. Every merge to `main` deploys automatically.
-
-[Continue working on v0 →](https://v0.app/chat/projects/prj_bDeIpPeM6GpPfXkiF8y0O5UJN8K1)
