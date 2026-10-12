@@ -16,6 +16,7 @@ const sep = "mx-1.5 h-4 w-px bg-[#262626]";
 const segment = "flex gap-0.5 rounded-[7px] border border-[#232323] bg-[#171717] p-0.5";
 const menuItem = "flex justify-between rounded-[5px] bg-transparent px-2.5 py-2 text-left text-xs text-[#d4d4d4] hover:bg-[#222]";
 const menuLabel = "px-2.5 pb-1 pt-2 text-[10px] uppercase tracking-[0.08em] text-[#5c5c5c]";
+const menu = "absolute top-9 z-[41] flex flex-col rounded-lg border border-[#2a2a2a] bg-[#161616] p-1 shadow-[0_12px_32px_rgba(0,0,0,.5)]";
 const primaryBtn =
   "flex h-[30px] items-center gap-1.5 rounded-md bg-[#ededed] px-3 text-xs font-medium text-[#121212] hover:bg-white";
 
@@ -106,13 +107,7 @@ export function Toolbar() {
                   <button
                     key={k}
                     title={`${f.label} · ${f.w}×${f.h}`}
-                    onClick={() => {
-                      if (act) return;
-                      s.commit((P2, p2) => {
-                        p2.frame = k;
-                      });
-                      requestAnimationFrame(() => useWirepadStore.getState().fit());
-                    }}
+                    onClick={() => s.setFrame(k)}
                     className={cn("flex h-[26px] w-8 items-center justify-center rounded-[5px] hover:text-[#ededed]", act ? "bg-[#2a2a2a] text-[#ededed]" : "bg-transparent text-[#8c8c8c]")}
                   >
                     <UI name={FRAME_ICONS[k]} size={15} />
@@ -121,23 +116,36 @@ export function Toolbar() {
               })}
             </div>
             <div className={sep} />
-            <div title="Grid (G cycles)" className={cn(segment, "items-center")}>
-              <span className="flex items-center px-1.5 text-[#5c5c5c]">
+            <div className="relative">
+              <button
+                onClick={() => s.set({ gridOpen: !s.gridOpen, exportOpen: false })}
+                title="Grid (G cycles)"
+                className={cn("flex h-[30px] items-center gap-1.5 rounded-md px-2 text-xs hover:bg-[#1f1f1f] hover:text-[#ededed]", s.grid ? "bg-[#222] text-[#ededed]" : "bg-transparent text-[#a3a3a3]")}
+              >
                 <UI name="Grid3x3|Grid" />
-              </span>
-              {GRID_SIZES.map((v) => {
-                const act = s.grid === v;
-                return (
-                  <button
-                    key={v}
-                    title={act ? "Hide grid" : `${v}px grid`}
-                    onClick={() => s.setGrid(act ? 0 : v)}
-                    className={cn("h-[26px] min-w-8 rounded-[5px] px-1.5 font-mono text-[11px] hover:text-[#ededed]", act ? "bg-[#2a2a2a] text-[#ededed]" : "bg-transparent text-[#8c8c8c]")}
-                  >
-                    {v}
-                  </button>
-                );
-              })}
+                <span>{s.grid ? `${s.grid}px` : "Grid"}</span>
+                <UI name="ChevronDown" size={12} />
+              </button>
+              {s.gridOpen && (
+                <>
+                  <div onClick={() => s.set({ gridOpen: false })} className="fixed inset-0 z-40" />
+                  <div className={cn(menu, "left-1/2 w-[140px] -translate-x-1/2")}>
+                    {[0, ...GRID_SIZES].map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => {
+                          s.setGrid(v);
+                          s.set({ gridOpen: false });
+                        }}
+                        className={cn("flex items-center justify-between rounded-[5px] bg-transparent px-2.5 py-[7px] text-left text-xs hover:bg-[#222]", s.grid === v ? "text-[#ededed]" : "text-[#a3a3a3]")}
+                      >
+                        {v ? `${v}px` : "Off"}
+                        {s.grid === v && <UI name="Check" size={13} />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
@@ -150,7 +158,7 @@ export function Toolbar() {
         </button>
         <div className="relative">
           <button
-            onClick={() => s.set({ exportOpen: !s.exportOpen })}
+            onClick={() => s.set({ exportOpen: !s.exportOpen, gridOpen: false })}
             className="flex h-[30px] items-center gap-1.5 rounded-md border border-[#262626] bg-transparent px-2.5 text-xs text-[#d4d4d4] hover:bg-[#1f1f1f]"
           >
             <UI name="Download" />
@@ -160,7 +168,7 @@ export function Toolbar() {
           {s.exportOpen && (
             <>
               <div onClick={() => s.set({ exportOpen: false })} className="fixed inset-0 z-40" />
-              <div className="absolute right-0 top-9 z-[41] flex w-[220px] flex-col rounded-lg border border-[#2a2a2a] bg-[#161616] p-1 shadow-[0_12px_32px_rgba(0,0,0,.5)]">
+              <div className={cn(menu, "right-0 w-[220px]")}>
                 <div className={menuLabel}>Current page</div>
                 <button onClick={() => s.exportImg("png")} className={menuItem}>
                   PNG<span className="font-mono text-[11px] text-[#5c5c5c]">⌘E</span>
@@ -182,7 +190,6 @@ export function Toolbar() {
                     >
                       Import .json…
                     </button>
-                    <button onClick={s.resetProject} className={cn(menuItem, "text-[#e5484d]")}>New project</button>
                   </>
                 )}
               </div>
