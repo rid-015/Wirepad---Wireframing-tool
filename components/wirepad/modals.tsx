@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { FRAMES, TEMPLATES, makePage } from "@/lib/component-registry";
-import { activePage, useWirepadStore } from "@/lib/store";
+import { FRAMES, TEMPLATES, makePage, type FrameKey } from "@/lib/component-registry";
+import { useWirepadStore } from "@/lib/store";
 import { Thumb } from "./canvas";
 import { UI } from "./toolbar";
 
@@ -12,6 +12,9 @@ export const SHORTCUTS: [string, string][] = [
   ["Duplicate (repeats last offset)", "⌘ D"],
   ["Duplicate while dragging", "⌥ drag"],
   ["Copy / Paste", "⌘ C  ⌘ V"],
+  ["Box select", "Drag empty area"],
+  ["Add to selection", "⇧ click"],
+  ["Select all", "⌘ A"],
   ["Delete", "⌫"],
   ["Nudge", "Arrows · ⇧ ×10"],
   ["Resize keeping ratio", "⇧ corner"],
@@ -48,26 +51,41 @@ function Modal({ title, width, gap, children }: { title: string; width: number; 
   );
 }
 
+const DEVICES: FrameKey[] = ["desktop", "tablet", "mobile"];
+
 function TemplatesModal() {
-  const project = useWirepadStore((s) => s.project)!;
   const createPage = useWirepadStore((s) => s.createPage);
-  const frame = activePage(project).frame;
-  const previews = useMemo(() => TEMPLATES.map((t) => ({ t, page: makePage(t.id, frame) })), [frame]);
+  // Built once per opening: build() mints fresh element ids.
+  const groups = useMemo(
+    () =>
+      DEVICES.map((k) => ({
+        k,
+        items: [
+          { id: "blank", name: "Blank", page: makePage("blank", k), frame: k },
+          ...TEMPLATES.filter((t) => t.frame === k).map((t) => ({ id: t.id, name: t.name, page: makePage(t.id), frame: undefined })),
+        ],
+      })),
+    []
+  );
   return (
-    <Modal title="Start from a template" width={720} gap={16}>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
-        {previews.map(({ t, page }) => (
-          <button
-            key={t.id}
-            onClick={() => createPage(t.id)}
-            className="flex flex-col gap-2.5 rounded-lg border border-[#262626] bg-[#1a1a1a] p-2 text-left text-[#ededed] hover:border-[#4a4a4a] hover:bg-[#1e1e1e]"
-          >
-            <Thumb page={page} />
-            <span className="flex justify-between px-0.5 pb-0.5 text-xs">
-              {t.name}
-              <span className="text-[#5c5c5c]">{FRAMES[page.frame].label}</span>
-            </span>
-          </button>
+    <Modal title="Start from a template" width={940} gap={16}>
+      <div className="flex flex-col gap-[22px]">
+        {groups.map((g) => (
+          <div key={g.k} className="flex flex-col gap-2.5">
+            <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[#8c8c8c]">{FRAMES[g.k].label}</span>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-2.5">
+              {g.items.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => createPage(t.id, t.frame)}
+                  className="flex flex-col gap-2 rounded-lg border border-[#262626] bg-[#1a1a1a] p-1.5 text-left text-[#ededed] hover:border-[#4a4a4a] hover:bg-[#1e1e1e]"
+                >
+                  <Thumb page={t.page} />
+                  <span className="truncate px-1 pb-0.5 text-xs">{t.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </Modal>

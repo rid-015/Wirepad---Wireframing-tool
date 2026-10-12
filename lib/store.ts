@@ -1,24 +1,32 @@
 import { create } from "zustand";
 import {
+  FRAMES,
   FULL,
+  INSET,
+  adaptPage,
   defaultProject,
   frameOf,
+  isTall,
   makePage,
   uid,
+  type FrameKey,
   type LibraryItem,
   type Page,
   type Project,
   type WireElement,
 } from "./component-registry";
-import { boardToImage, download, exportProjectJson, slug } from "./export";
+import { boardToImage, download, exportProjectJson } from "./export";
 import { decodeShare, encodeShare } from "./share";
 
 const KEY = "wirepad:v2:project";
 const GRID_KEY = "wirepad:grid";
 export const GRID_SIZES = [8, 16, 32] as const;
+export const MIN_PAGE_H = 200;
+export const MAX_PAGE_H = 20000;
 
 const clone = <T,>(o: T): T => JSON.parse(JSON.stringify(o));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const fileName = (s: string) => String(s || "").replace(/[\\/:*?"<>|]+/g, "").trim() || "Page";
 
 export const activePage = (P: Project): Page => P.pages.find((p) => p.id === P.activeId) || P.pages[0];
 
@@ -26,16 +34,27 @@ export const activePage = (P: Project): Page => P.pages.find((p) => p.id === P.a
 export const dom: { canvas: HTMLDivElement | null; board: HTMLDivElement | null } = { canvas: null, board: null };
 
 export type Modal = "new" | "share" | "keys" | null;
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 interface State {
   project: Project | null;
   view: boolean;
+  /** Single selection. */
   selId: string | null;
+  /** Multi-selection (2+ ids); exclusive with selId. */
+  multi: string[];
+  marq: Rect | null;
   zoom: number;
   grid: number;
   guides: { x: number | null; y: number | null } | null;
   modal: Modal;
   exportOpen: boolean;
+  gridOpen: boolean;
   toast: string | null;
   shareUrl: string;
   query: string;
@@ -56,11 +75,16 @@ interface Actions {
   redo: () => void;
   flash: (msg: string) => void;
   fit: () => boolean;
+  /** Re-fits and scrolls the canvas to the top after the next render. */
+  toTop: () => void;
   zoomBy: (f: number) => void;
   setGrid: (v: number) => void;
   snap: (v: number) => number;
+  select: (ids: string[]) => void;
+  selectAll: () => void;
   addEl: (item: LibraryItem, cx?: number, cy?: number) => void;
-  updSel: (fn: (el: WireElement) => void, key?: string) => void;
+  updSel: (fn: (el: WireElement) => void, key?: string | null) => void;
+  nudge: (dx: number, dy: number) => void;
   deleteSel: () => void;
   dupSel: () => void;
   paste: (src: WireElement, dx?: number, dy?: number) => WireElement;
@@ -68,15 +92,16 @@ interface Actions {
   cutSel: () => void;
   pasteClip: () => void;
   reorder: (dir: number) => void;
+  setFrame: (k: FrameKey) => void;
   setActive: (id: string) => void;
-  createPage: (tplId: string) => void;
+  createPage: (tplId: string, frame?: FrameKey) => void;
+  renamePage: (id: string, name: string) => void;
   dupPage: (id: string) => void;
   delPage: (id: string) => void;
   clearPage: () => void;
   exportImg: (fmt: "png" | "jpg", scale?: number, all?: boolean) => Promise<void>;
   exportJson: () => void;
   importFile: (f: File) => Promise<void>;
-  resetProject: () => void;
   openShare: () => Promise<void>;
   copyShare: () => Promise<void>;
   editCopy: () => void;
@@ -90,6 +115,8 @@ let lastT = 0;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let clip: WireElement | null = null;
+/** `?fresh=1` shows the first-run state without reading or writing saved data. */
+let fresh = false;
 /** Remembers the last duplicate so ⌘D repeats the offset the user dragged it to. */
 export const dupMemo: { last: { newId: string; sx: number; sy: number } | null } = { last: null };
 
@@ -99,11 +126,14 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
   project: null,
   view: false,
   selId: null,
+  multi: [],
+  marq: null,
   zoom: 1,
   grid: 0,
   guides: null,
   modal: null,
   exportOpen: false,
+  gridOpen: false,
   toast: null,
   shareUrl: "",
   query: "",
@@ -128,7 +158,8 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
         console.warn("Bad share link", e);
       }
     }
-    if (!project) {
+    fresh = /[?&]fresh\b/.test(location.search);
+    if (!project && !fresh) {
       try {
         project = JSON.parse(localStorage.getItem(KEY) || "null");
       } catch {}
@@ -142,7 +173,7 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
 
   setProject(p, extra = {}) {
     set({ project: p, saved: false, ...extra });
-    if (get().view) return;
+    if (get().view || fresh) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
@@ -204,10 +235,23 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
     const c = dom.canvas;
     const { project } = get();
     if (!c || !project || !c.clientWidth || !c.clientHeight) return false;
-    const F = frameOf(activePage(project));
-    const z = Math.min((c.clientWidth - 128) / F.w, (c.clientHeight - 136) / F.h, 1);
+    const pg = activePage(project);
+    const F = frameOf(pg);
+    // Tall pages fit by width and scroll.
+    const z = Math.min((c.clientWidth - 128) / F.w, isTall(pg) ? 1 : (c.clientHeight - 136) / F.h, 1);
     set({ zoom: Math.max(0.1, Math.floor(z * 100) / 100) });
     return true;
+  },
+
+  toTop() {
+    setTimeout(
+      () =>
+        requestAnimationFrame(() => {
+          get().fit();
+          if (dom.canvas) dom.canvas.scrollTop = 0;
+        }),
+      0
+    );
   },
 
   zoomBy(f) {
@@ -226,22 +270,43 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
     return g ? Math.round(v / g) * g : Math.round(v);
   },
 
+  select(ids) {
+    set(ids.length > 1 ? { multi: ids, selId: null } : { multi: [], selId: ids[0] || null });
+  },
+
+  selectAll() {
+    const { project, select } = get();
+    if (project) select(activePage(project).elements.map((q) => q.id));
+  },
+
   addEl(item, cx, cy) {
-    const { project, snap } = get();
+    const { project, snap, zoom } = get();
     if (!project) return;
     const F = frameOf(activePage(project));
-    const w = item.w === FULL ? F.w : item.w;
+    const w = item.w === FULL ? F.w : item.w === INSET ? F.w - 32 : Math.min(item.w, F.w - 32);
     const h = item.h === FULL ? F.h : item.h;
+    const fx = item.w === FULL ? 0 : item.w === INSET ? 16 : null;
     let x: number, y: number;
     if (cx == null || cy == null) {
-      x = Math.round((F.w - w) / 2);
-      y = item.at === "top" ? 0 : item.at === "bottom" ? F.h - h : Math.round((F.h - h) / 2);
+      x = fx ?? Math.round((F.w - w) / 2);
+      // Click-to-add lands in the middle of what is visible, not the middle of a tall page.
+      let vy = F.h / 2;
+      if (dom.canvas && dom.board) {
+        const cr = dom.canvas.getBoundingClientRect(), br = dom.board.getBoundingClientRect();
+        vy = (cr.top + cr.height / 2 - br.top) / zoom;
+      }
+      y =
+        item.at === "top"
+          ? 0
+          : item.at === "bottom"
+            ? F.h - h - (item.w === INSET ? 34 : 0)
+            : Math.round(Math.max(0, Math.min(F.h - h, vy - h / 2)));
     } else {
-      x = item.w === FULL ? 0 : snap(cx - w / 2);
+      x = fx ?? snap(cx - w / 2);
       y = snap(cy - h / 2);
     }
     const el: WireElement = { id: uid(), type: item.type, x, y, w, h, props: { ...item.props } };
-    get().commit((P, pg) => pg.elements.push(el), null, { selId: el.id });
+    get().commit((P, pg) => pg.elements.push(el), null, { selId: el.id, multi: [] });
   },
 
   updSel(fn, key) {
@@ -256,17 +321,56 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
     );
   },
 
+  nudge(dx, dy) {
+    const { multi, updSel, commit } = get();
+    if (multi.length)
+      commit((P, pg) =>
+        pg.elements.forEach((q) => {
+          if (multi.includes(q.id)) {
+            q.x += dx;
+            q.y += dy;
+          }
+        }), "nudge-multi");
+    else
+      updSel((el) => {
+        el.x += dx;
+        el.y += dy;
+      }, "nudge");
+  },
+
   deleteSel() {
-    const id = get().selId;
-    if (!id) return;
-    get().commit((P, pg) => {
-      pg.elements = pg.elements.filter((e) => e.id !== id);
+    const { multi, selId, commit, flash } = get();
+    if (multi.length) {
+      commit((P, pg) => {
+        pg.elements = pg.elements.filter((e) => !multi.includes(e.id));
+      }, null, { multi: [], selId: null });
+      flash(`Deleted ${multi.length} items — ⌘Z to undo`);
+      return;
+    }
+    if (!selId) return;
+    commit((P, pg) => {
+      pg.elements = pg.elements.filter((e) => e.id !== selId);
     }, null, { selId: null });
   },
 
   dupSel() {
-    const { project, selId } = get();
-    const el = project && selId && activePage(project).elements.find((e) => e.id === selId);
+    const { project, selId, multi } = get();
+    if (!project) return;
+    if (multi.length) {
+      const nu: string[] = [];
+      get().commit((P, pg) => {
+        pg.elements
+          .filter((q) => multi.includes(q.id))
+          .forEach((q) => {
+            const c = { ...clone(q), id: uid(), x: q.x + 16, y: q.y + 16 };
+            pg.elements.push(c);
+            nu.push(c.id);
+          });
+      }, null);
+      set({ multi: nu });
+      return;
+    }
+    const el = selId && activePage(project).elements.find((e) => e.id === selId);
     if (!el) return;
     let dx = 16, dy = 16;
     const ld = dupMemo.last;
@@ -280,7 +384,7 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
 
   paste(src, dx = 16, dy = dx) {
     const n = { ...clone(src), id: uid(), x: src.x + dx, y: src.y + dy };
-    get().commit((P, pg) => pg.elements.push(n), null, { selId: n.id });
+    get().commit((P, pg) => pg.elements.push(n), null, { selId: n.id, multi: [] });
     return n;
   },
 
@@ -311,23 +415,43 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
     });
   },
 
+  setFrame(k) {
+    const { project, commit, flash, toTop } = get();
+    if (!project) return;
+    const pg = activePage(project);
+    if (pg.frame === k) return;
+    const had = pg.elements.length;
+    commit((P, p2) => {
+      adaptPage(p2, k);
+    }, null, { selId: null, multi: [] });
+    toTop();
+    if (had) flash(`Adapted to ${FRAMES[k].label} — ⌘Z to undo`);
+  },
+
   setActive(id) {
     const { project } = get();
     if (!project || project.activeId === id) return;
-    get().setProject({ ...project, activeId: id }, { selId: null });
-    fitSoon();
+    get().setProject({ ...project, activeId: id }, { selId: null, multi: [] });
+    get().toTop();
   },
 
-  createPage(tplId) {
+  createPage(tplId, frame) {
     const { project } = get();
     if (!project) return;
-    const pg = makePage(tplId, activePage(project).frame);
+    const pg = makePage(tplId, frame || activePage(project).frame);
     if (tplId === "blank") pg.name = "Page " + (project.pages.length + 1);
     get().commit((P) => {
       P.pages.push(pg);
       P.activeId = pg.id;
-    }, null, { modal: null, selId: null });
-    fitSoon();
+    }, null, { modal: null, selId: null, multi: [] });
+    get().toTop();
+  },
+
+  renamePage(id, name) {
+    get().commit((P) => {
+      const t = P.pages.find((x) => x.id === id);
+      if (t) t.name = name;
+    }, "pgname" + id);
   },
 
   dupPage(id) {
@@ -338,7 +462,7 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
     get().commit((P) => {
       P.pages.splice(P.pages.findIndex((p) => p.id === id) + 1, 0, n);
       P.activeId = n.id;
-    }, null, { selId: null });
+    }, null, { selId: null, multi: [] });
   },
 
   delPage(id) {
@@ -350,7 +474,7 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
       const i = P.pages.findIndex((p) => p.id === id);
       P.pages.splice(i, 1);
       if (P.activeId === id) P.activeId = P.pages[Math.max(0, i - 1)].id;
-    }, null, { selId: null });
+    }, null, { selId: null, multi: [] });
     fitSoon();
   },
 
@@ -359,7 +483,7 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
     if (!project || !activePage(project).elements.length) return;
     get().commit((P, pg) => {
       pg.elements = [];
-    }, null, { selId: null });
+    }, null, { selId: null, multi: [] });
     get().flash("Page cleared — ⌘Z to undo");
   },
 
@@ -378,7 +502,7 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
         const node = dom.board;
         if (!node) throw new Error("No artboard");
         const url = await boardToImage(node, frameOf(pg), fmt, scale);
-        download(url, `${slug(P.name)}-${slug(pg.name)}${scale > 1 ? "@" + scale + "x" : ""}.${fmt}`);
+        download(url, `${fileName(pg.name)}${scale > 1 ? "@" + scale + "x" : ""}.${fmt}`);
       }
       get().flash(list.length > 1 ? `Exported ${list.length} pages` : `Exported ${fmt.toUpperCase()}`);
     } catch (e) {
@@ -402,23 +526,12 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
       get().commit((P) => {
         Object.keys(P).forEach((k) => delete (P as unknown as Record<string, unknown>)[k]);
         Object.assign(P, d);
-      }, null, { selId: null });
+      }, null, { selId: null, multi: [] });
       fitSoon();
       get().flash("Project imported");
     } catch {
       get().flash("That file is not a Wirepad project");
     }
-  },
-
-  resetProject() {
-    set({ exportOpen: false });
-    if (!window.confirm("Start a new project? The current one is replaced (export a .json first to keep it).")) return;
-    const np = defaultProject();
-    get().commit((P) => {
-      Object.keys(P).forEach((k) => delete (P as unknown as Record<string, unknown>)[k]);
-      Object.assign(P, np);
-    }, null, { selId: null });
-    fitSoon();
   },
 
   async openShare() {

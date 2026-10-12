@@ -2,15 +2,17 @@
 
 import { CATEGORIES } from "@/lib/component-registry";
 import { startSideDrag } from "@/lib/interactions";
-import { useWirepadStore } from "@/lib/store";
+import { activePage, useWirepadStore } from "@/lib/store";
 import { Icon } from "./icon";
 import { UI } from "./toolbar";
 
 export function Sidebar() {
   const query = useWirepadStore((s) => s.query);
   const set = useWirepadStore((s) => s.set);
+  const frame = useWirepadStore((s) => s.project && activePage(s.project).frame);
   const q = query.trim().toLowerCase();
-  const cats = CATEGORIES.map((c) => ({
+  // Some categories only make sense on certain devices (e.g. Sections on web, Mobile on phones).
+  const cats = CATEGORIES.filter((c) => !c.only || !frame || c.only.includes(frame)).map((c) => ({
     name: c.name,
     items: c.items.filter((i) => !q || i.label.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)),
   })).filter((c) => c.items.length);

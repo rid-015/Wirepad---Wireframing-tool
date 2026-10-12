@@ -1,11 +1,12 @@
 import type React from "react";
-import { frameOf, uid, type LibraryItem, type WireElement } from "./component-registry";
-import { activePage, dom, dupMemo, useWirepadStore } from "./store";
+import { FRAMES, frameOf, uid, type LibraryItem, type WireElement } from "./component-registry";
+import { MAX_PAGE_H, MIN_PAGE_H, activePage, dom, dupMemo, useWirepadStore } from "./store";
 
 /** Resize handle direction: any combination of n/s/e/w, or undefined for a move. */
 export type Dir = "n" | "s" | "e" | "w" | "nw" | "ne" | "se" | "sw";
 
-interface Drag {
+interface SingleDrag {
+  group: false;
   id: string;
   origId: string;
   dir?: Dir;
@@ -19,11 +20,34 @@ interface Drag {
   vy: number[];
 }
 
-let drag: Drag | null = null;
+interface GroupDrag {
+  group: true;
+  /** Ids being dragged; with ⌥ these are fresh copies and origIds the originals. */
+  ids: string[];
+  origIds: string[];
+  alt: boolean;
+  o: Record<string, { x: number; y: number }>;
+  sx: number;
+  sy: number;
+  pre: string;
+  moved: boolean;
+}
+
+let drag: SingleDrag | GroupDrag | null = null;
 let side: { item: LibraryItem; sx: number; sy: number; on: boolean } | null = null;
+let pageDrag: { sy: number; h0: number; pre: string; moved: boolean } | null = null;
+let marq: { x: number; y: number; base: string[]; on: boolean } | null = null;
 
 const S = () => useWirepadStore.getState();
 const clone = <T,>(o: T): T => JSON.parse(JSON.stringify(o));
+
+/** Converts a screen point to artboard coordinates. */
+function toPage(cx: number, cy: number) {
+  const b = dom.board;
+  if (!b) return null;
+  const r = b.getBoundingClientRect(), z = S().zoom;
+  return { x: (cx - r.left) / z, y: (cy - r.top) / z };
+}
 
 /** Snap targets: page edges/centre plus every other element's edges and centres. */
 function guideLines(excludeId: string | null) {
@@ -55,9 +79,42 @@ export function startMove(e: React.PointerEvent, id: string, dir?: Dir) {
   e.stopPropagation();
   e.preventDefault();
   (document.activeElement as HTMLElement | null)?.blur?.();
-  const el = activePage(s.project).elements.find((x) => x.id === id);
+  const pg = activePage(s.project);
+  const el = pg.elements.find((x) => x.id === id);
   if (!el) return;
   const pre = JSON.stringify(s.project);
+
+  // ⇧-click toggles the element in the selection.
+  if (e.shiftKey && !dir) {
+    const cur = new Set(s.multi.length ? s.multi : s.selId ? [s.selId] : []);
+    if (cur.has(id)) cur.delete(id);
+    else cur.add(id);
+    s.select([...cur]);
+    return;
+  }
+
+  // Dragging any member of a multi-selection moves the group (⌥ drags a copy).
+  if (!dir && s.multi.includes(id)) {
+    let ids = s.multi, els = pg.elements;
+    if (e.altKey) {
+      const P = clone(s.project), p2 = activePage(P), nu: string[] = [];
+      p2.elements
+        .filter((q) => ids.includes(q.id))
+        .forEach((q) => {
+          const c = { ...clone(q), id: uid() };
+          p2.elements.push(c);
+          nu.push(c.id);
+        });
+      s.set({ project: P, multi: nu });
+      ids = nu;
+      els = p2.elements;
+    }
+    const o = Object.fromEntries(els.filter((q) => ids.includes(q.id)).map((q) => [q.id, { x: q.x, y: q.y }]));
+    drag = { group: true, ids, origIds: s.multi, alt: e.altKey, o, sx: e.clientX, sy: e.clientY, pre, moved: false };
+    return;
+  }
+
+  if (s.multi.length) s.set({ multi: [] });
   let target = el, alt = false;
   if (e.altKey && !dir) {
     // ⌥-drag leaves the original in place and drags a copy.
@@ -67,13 +124,34 @@ export function startMove(e: React.PointerEvent, id: string, dir?: Dir) {
     activePage(P).elements.push(target);
     s.set({ project: P, selId: target.id });
   } else if (s.selId !== id) s.set({ selId: id });
-  drag = { id: target.id, origId: id, dir, alt, sx: e.clientX, sy: e.clientY, o: { ...target }, pre, moved: false, ...guideLines(alt ? null : id) };
+  drag = { group: false, id: target.id, origId: id, dir, alt, sx: e.clientX, sy: e.clientY, o: { ...target }, pre, moved: false, ...guideLines(alt ? null : id) };
 }
 
 export function startSideDrag(e: React.PointerEvent, item: LibraryItem) {
   if (e.button !== 0) return;
   e.preventDefault();
   side = { item, sx: e.clientX, sy: e.clientY, on: false };
+}
+
+export function startPageResize(e: React.PointerEvent) {
+  const s = S();
+  if (s.view || !s.project || e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  pageDrag = { sy: e.clientY, h0: frameOf(activePage(s.project)).h, pre: JSON.stringify(s.project), moved: false };
+}
+
+/** Pointer down on empty canvas: start a marquee (⇧ adds to the current selection). */
+export function startMarquee(e: React.PointerEvent) {
+  const s = S();
+  (document.activeElement as HTMLElement | null)?.blur?.();
+  if (s.view || e.button !== 0) return;
+  const pt = toPage(e.clientX, e.clientY);
+  if (!pt) return;
+  e.preventDefault();
+  const base = e.shiftKey ? (s.multi.length ? s.multi : s.selId ? [s.selId] : []) : [];
+  marq = { x: pt.x, y: pt.y, base, on: false };
+  if (!e.shiftKey && (s.selId || s.multi.length)) s.set({ selId: null, multi: [] });
 }
 
 export function onPointerMove(e: PointerEvent) {
@@ -83,11 +161,53 @@ export function onPointerMove(e: PointerEvent) {
     if (side.on) s.set({ ghost: { x: e.clientX, y: e.clientY, label: side.item.label } });
     return;
   }
+  if (!s.project) return;
+
+  if (pageDrag) {
+    const nh = Math.max(MIN_PAGE_H, Math.min(MAX_PAGE_H, Math.round(pageDrag.h0 + (e.clientY - pageDrag.sy) / s.zoom)));
+    pageDrag.moved = true;
+    const P = clone(s.project), pg = activePage(P), base = FRAMES[pg.frame].h;
+    // Snap back to the device's default height when close.
+    if (Math.abs(nh - base) < 6 / s.zoom) delete pg.h;
+    else pg.h = nh;
+    s.set({ project: P });
+    return;
+  }
+
+  if (marq) {
+    const pt = toPage(e.clientX, e.clientY);
+    if (!pt) return;
+    const r = { x: Math.min(marq.x, pt.x), y: Math.min(marq.y, pt.y), w: Math.abs(pt.x - marq.x), h: Math.abs(pt.y - marq.y) };
+    if (!marq.on && (r.w + r.h) * s.zoom < 4) return;
+    marq.on = true;
+    const hits = activePage(s.project)
+      .elements.filter((q) => q.x < r.x + r.w && q.x + q.w > r.x && q.y < r.y + r.h && q.y + q.h > r.y)
+      .map((q) => q.id);
+    const ids = [...new Set([...marq.base, ...hits])];
+    s.set({ marq: r, multi: ids.length > 1 ? ids : [], selId: ids.length === 1 ? ids[0] : null });
+    return;
+  }
+
   const d = drag;
-  if (!d || !s.project) return;
+  if (!d) return;
   const z = s.zoom, dx = (e.clientX - d.sx) / z, dy = (e.clientY - d.sy) / z;
   if (!d.moved && Math.hypot(dx * z, dy * z) < 2) return;
   d.moved = true;
+
+  if (d.group) {
+    const mx = Math.round(s.grid ? s.snap(dx) : dx), my = Math.round(s.grid ? s.snap(dy) : dy);
+    const P = clone(s.project);
+    activePage(P).elements.forEach((q) => {
+      const o = d.o[q.id];
+      if (o) {
+        q.x = o.x + mx;
+        q.y = o.y + my;
+      }
+    });
+    s.set({ project: P });
+    return;
+  }
+
   const o = d.o;
   let { x, y, w, h } = o;
   let gx: number | null = null, gy: number | null = null;
@@ -145,9 +265,25 @@ export function onPointerUp(e: PointerEvent) {
     } else s.addEl(sd.item);
     return;
   }
+  if (pageDrag) {
+    const pd = pageDrag;
+    pageDrag = null;
+    if (pd.moved) s.commitLive(pd.pre);
+    return;
+  }
+  if (marq) {
+    marq = null;
+    if (s.marq) s.set({ marq: null });
+    return;
+  }
   const d = drag;
   drag = null;
   if (!d) return;
+  if (d.group) {
+    if (d.moved) s.commitLive(d.pre);
+    else if (d.alt) s.set({ project: JSON.parse(d.pre), multi: d.origIds });
+    return;
+  }
   if (s.guides) s.set({ guides: null });
   if (d.moved) {
     s.commitLive(d.pre);

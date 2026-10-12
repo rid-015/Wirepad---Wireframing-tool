@@ -20,9 +20,9 @@ function onKey(e: KeyboardEvent) {
   const mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
   if (!s.project) return;
   if (k === "escape") {
-    if (s.modal || s.exportOpen) s.set({ modal: null, exportOpen: false });
+    if (s.modal || s.exportOpen || s.gridOpen) s.set({ modal: null, exportOpen: false, gridOpen: false });
     else if (typing) t!.blur();
-    else s.set({ selId: null });
+    else s.set({ selId: null, multi: [] });
     return;
   }
   if (typing) return;
@@ -38,15 +38,14 @@ function onKey(e: KeyboardEvent) {
   if (mod && k === "c") { if (sel) s.copySel(); return; }
   if (mod && k === "x") { if (sel) s.cutSel(); return; }
   if (mod && k === "v") { e.preventDefault(); s.pasteClip(); return; }
+  if (mod && k === "a") { e.preventDefault(); s.selectAll(); return; }
   if (mod) return;
-  if ((k === "delete" || k === "backspace") && sel) { e.preventDefault(); s.deleteSel(); return; }
-  if (ARROWS[k] && sel) {
+  const any = !!sel || s.multi.length > 0;
+  if ((k === "delete" || k === "backspace") && any) { e.preventDefault(); s.deleteSel(); return; }
+  if (ARROWS[k] && any) {
     e.preventDefault();
     const m = e.shiftKey ? 10 : 1, [ax, ay] = ARROWS[k];
-    s.updSel((el) => {
-      el.x += ax * m;
-      el.y += ay * m;
-    }, "nudge");
+    s.nudge(ax * m, ay * m);
     return;
   }
   if (k === "]") { s.reorder(1); return; }
