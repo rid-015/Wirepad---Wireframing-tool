@@ -1,35 +1,83 @@
-# Wirepad---Wireframing-tool
+# Wirepad
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+A fast, minimal wireframing tool for the browser. Drag ready-made components onto desktop, tablet or mobile pages, then export images or share a link. There are no accounts or servers: your work is saved in your browser.
 
-## Built with v0
+**Live:** [wirepad.ridv.art](https://wirepad.ridv.art)
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+![Wirepad editor](docs/screenshot.png)
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_bDeIpPeM6GpPfXkiF8y0O5UJN8K1)
+## Features
 
-## Getting Started
+- **60+ ready-made components:** shapes and text, buttons and form fields, navbars, sidebars and tabs, cards and lists, tables and charts, image/video/avatar/map placeholders, mobile UI (status bar, app bar, tab bar, keyboard), modals and alerts, and icons.
+- **Artboards:** Desktop (1440×1024), Tablet (834×1194) and Mobile (390×844).
+- **Fast editing:**
+  - drag from the library or click to add;
+  - move and resize from large edge and corner handles, with alignment guides that snap to the page and to other elements;
+  - <kbd>⇧</kbd> keeps proportions while resizing;
+  - <kbd>⌘/Ctrl</kbd>+<kbd>D</kbd> duplicates (and repeats the last offset), <kbd>⌥/Alt</kbd>-drag duplicates while dragging;
+  - copy, cut, paste, arrow-key nudge, and undo/redo.
+- **Grid:** 8 / 16 / 32 px, toggled from the top bar or cycled with <kbd>G</kbd>.
+- **Pages and templates:** multiple pages per project. Start from Blank, Landing page, Dashboard, Settings, Login or Mobile feed.
+- **Export:** PNG, PNG @2x, JPG, or every page at once. Projects can be saved and loaded as `.json` files.
+- **Share links:** a view-only link carries the whole project, compressed into the URL. Nothing is uploaded. Viewers can flip through pages, export images, or make an editable copy.
+- **Autosave:** everything is saved to your browser's local storage as you work.
 
-First, run the development server:
+## Keyboard shortcuts
+
+| Action | Shortcut |
+| --- | --- |
+| Undo / Redo | <kbd>⌘</kbd> <kbd>Z</kbd> / <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd> |
+| Duplicate | <kbd>⌘</kbd> <kbd>D</kbd> |
+| Duplicate while dragging | <kbd>⌥</kbd> drag |
+| Copy / Cut / Paste | <kbd>⌘</kbd> <kbd>C</kbd> / <kbd>⌘</kbd> <kbd>X</kbd> / <kbd>⌘</kbd> <kbd>V</kbd> |
+| Delete | <kbd>⌫</kbd> |
+| Nudge (×10 with Shift) | Arrow keys |
+| Bring forward / Send backward | <kbd>]</kbd> / <kbd>[</kbd> |
+| Cycle grid 8 / 16 / 32 / off | <kbd>G</kbd> |
+| New blank page | <kbd>P</kbd> |
+| Templates | <kbd>T</kbd> |
+| Zoom in / out / fit | <kbd>⌘</kbd> <kbd>+</kbd> / <kbd>⌘</kbd> <kbd>−</kbd> / <kbd>⌘</kbd> <kbd>0</kbd> |
+| Export PNG | <kbd>⌘</kbd> <kbd>E</kbd> |
+| Deselect / close | <kbd>Esc</kbd> |
+| All shortcuts | <kbd>?</kbd> |
+
+On Windows and Linux, use <kbd>Ctrl</kbd> for <kbd>⌘</kbd> and <kbd>Alt</kbd> for <kbd>⌥</kbd>.
+
+## Getting started
+
+Requires Node.js 20.9+ and [pnpm](https://pnpm.io).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000). For a production build, run `pnpm build && pnpm start`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project structure
 
-## Learn More
+```
+app/                         Next.js app shell, fonts (Geist) and global styles
+components/wirepad/
+  editor.tsx                 Layout, keyboard shortcuts, global pointer handling
+  toolbar.tsx                Top bar: undo, zoom, artboard, grid, export, share
+  sidebar.tsx                Component library with search
+  canvas.tsx                 Artboard, selection handles, guides, grid overlay
+  canvas-element.tsx         Renders each wireframe component
+  screen-manager.tsx         Pages list and properties inspector
+  modals.tsx                 Templates, share link and shortcuts dialogs
+lib/
+  component-registry.ts      Component library, templates, project types
+  store.ts                   Zustand store: project state, undo/redo, autosave
+  interactions.ts            Move, resize, smart guides, library drag-and-drop
+  export.ts                  PNG/JPG/JSON export (html-to-image)
+  share.ts                   Encode/decode projects in share links
+```
 
-To learn more, take a look at the following resources:
+**Built with** Next.js, React, TypeScript, Tailwind CSS, Zustand, html-to-image and Lucide icons.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+## Built with v0
 
-<a href="https://v0.app/chat/api/kiro/clone/rid-015/Wirepad---Wireframing-tool" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+This repository is linked to a [v0](https://v0.app) project. You can keep developing there, and v0 will push commits directly to this repo. Every merge to `main` deploys automatically.
+
+[Continue working on v0 →](https://v0.app/chat/projects/prj_bDeIpPeM6GpPfXkiF8y0O5UJN8K1)
