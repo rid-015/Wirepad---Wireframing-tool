@@ -8,7 +8,7 @@ A fast, minimal wireframing tool for the browser. Drag ready-made components ont
 
 ## Features
 
-- **100+ ready-made components:** basics, full-width web sections (hero, features, pricing, FAQ, testimonials, footer…), app UI (sidebar, top bar, tables, settings rows), mobile UI (status bar, large title, cells, tab bar, sheets, chat), forms, data and charts, overlays, and icons. The library only shows what fits the current device.
+- **90 ready-made components:** basics, full-width web sections (hero, features, pricing, FAQ, testimonials, footer…), app UI (sidebar, top bar, tables, settings rows), mobile UI (status bar, large title, cells, tab bar, sheets, chat), forms, data and charts, and overlays. The library only shows what fits the current device.
 - **Artboards:** Desktop (1440×1024), Tablet (834×1194) and Mobile (390×844). Drag the handle under the page to make it taller.
 - **Responsive adapt:** switching a page to another device re-lays out its content, for example turning a sidebar into a tab bar and a table into a list on mobile. One <kbd>⌘</kbd> <kbd>Z</kbd> undoes it.
 - **Fast editing:**
