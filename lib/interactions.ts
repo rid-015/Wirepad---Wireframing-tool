@@ -53,11 +53,12 @@ function toPage(cx: number, cy: number) {
 function guideLines(excludeId: string | null) {
   const pg = activePage(S().project!);
   const F = frameOf(pg);
-  const vx = [0, F.w / 2, F.w], vy = [0, F.h / 2, F.h];
+  // Centres are rounded so a snap never lands an edge (or a guide) on half a pixel.
+  const vx = [0, Math.round(F.w / 2), F.w], vy = [0, Math.round(F.h / 2), F.h];
   pg.elements.forEach((o) => {
     if (o.id === excludeId) return;
-    vx.push(o.x, o.x + o.w / 2, o.x + o.w);
-    vy.push(o.y, o.y + o.h / 2, o.y + o.h);
+    vx.push(o.x, Math.round(o.x + o.w / 2), o.x + o.w);
+    vy.push(o.y, Math.round(o.y + o.h / 2), o.y + o.h);
   });
   return { vx, vy };
 }

@@ -26,6 +26,27 @@ export const MAX_PAGE_H = 20000;
 
 const clone = <T,>(o: T): T => JSON.parse(JSON.stringify(o));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/**
+ * Positions and sizes are always whole pixels, so nothing ever sits on half a pixel.
+ * Returns the project unchanged when it is already clean (the normal case), else a rounded copy.
+ */
+export function wholePixels(P: Project): Project {
+  const bad = (v: unknown) => typeof v !== "number" || !Number.isInteger(v);
+  const dirty = P.pages.some((pg) => (pg.h != null && bad(pg.h)) || pg.elements.some((e) => bad(e.x) || bad(e.y) || bad(e.w) || bad(e.h)));
+  if (!dirty) return P;
+  const d = clone(P);
+  d.pages.forEach((pg) => {
+    if (pg.h != null) pg.h = Math.round(+pg.h || 0) || undefined;
+    pg.elements.forEach((e) => {
+      e.x = Math.round(+e.x || 0);
+      e.y = Math.round(+e.y || 0);
+      e.w = Math.max(1, Math.round(+e.w || 0));
+      e.h = Math.max(1, Math.round(+e.h || 0));
+    });
+  });
+  return d;
+}
+
 const fileName = (s: string) => String(s || "").replace(/[\\/:*?"<>|]+/g, "").trim() || "Page";
 
 export const activePage = (P: Project): Page => P.pages.find((p) => p.id === P.activeId) || P.pages[0];
@@ -166,12 +187,13 @@ export const useWirepadStore = create<State & Actions>()((set, get) => ({
     }
     if (!project || !Array.isArray(project.pages) || !project.pages.length) project = defaultProject();
     if (!project.pages.find((p) => p.id === project!.activeId)) project.activeId = project.pages[0].id;
-    set({ project, view, grid });
+    set({ project: wholePixels(project), view, grid });
   },
 
   set: (s) => set(s),
 
   setProject(p, extra = {}) {
+    p = wholePixels(p);
     set({ project: p, saved: false, ...extra });
     if (get().view || fresh) return;
     clearTimeout(saveTimer);

@@ -8,7 +8,7 @@ A fast, minimal wireframing tool for the browser. Drag ready-made components ont
 
 ## Features
 
-- **100+ ready-made components:** basics, full-width web sections (hero, features, pricing, FAQ, testimonials, footer…), app UI (sidebar, top bar, tables, settings rows), mobile UI (status bar, large title, cells, tab bar, sheets, chat), forms, data and charts, overlays, and icons. The library only shows what fits the current device.
+- **90 ready-made components:** basics, full-width web sections (hero, features, pricing, FAQ, testimonials, footer…), app UI (sidebar, top bar, tables, settings rows), mobile UI (status bar, large title, cells, tab bar, sheets, chat), forms, data and charts, and overlays. The library only shows what fits the current device.
 - **Artboards:** Desktop (1440×1024), Tablet (834×1194) and Mobile (390×844). Drag the handle under the page to make it taller.
 - **Responsive adapt:** switching a page to another device re-lays out its content, for example turning a sidebar into a tab bar and a table into a list on mobile. One <kbd>⌘</kbd> <kbd>Z</kbd> undoes it.
 - **Fast editing:**
@@ -21,7 +21,8 @@ A fast, minimal wireframing tool for the browser. Drag ready-made components ont
   - <kbd>⌘/Ctrl</kbd>+<kbd>D</kbd> duplicates (and repeats the last offset), <kbd>⌥/Alt</kbd>-drag duplicates while dragging;
   - copy, cut, paste, arrow-key nudge, and undo/redo.
 - **Grid:** 8 / 16 / 32 px, picked from the top bar or cycled with <kbd>G</kbd>.
-- **Pages and templates:** multiple pages per project, renamed inline. 23 templates across desktop (SaaS landing, pricing, blog, dashboard, CRM, settings, sign in, product page…), tablet and mobile (onboarding, feed, shop, cart, profile, messages, chat…).
+- **Pages and templates:** multiple pages per project, renamed inline. 48 templates: 21 for desktop (SaaS and app landing pages, portfolio, event, pricing, blog, docs, dashboard, analytics, CRM, kanban, inbox, booking, checkout, sign in / sign up, settings, product page, 404…), 8 for tablet (dashboard, shop, article, mail and settings split views, sign in, onboarding…) and 19 for mobile (onboarding, sign in / sign up, feed, shop, product, cart, payment, order tracking, bookings, profile, edit profile, messages, chat, notifications, paywall, empty state, settings, search). They follow an 8px rhythm with 16–24px margins and touch targets of 44px or more.
+- **Whole pixels:** positions and sizes always land on whole pixels, including snapping to centres, imports and device adapts, and snap guides draw on a full pixel.
 - **Export:** PNG, PNG @2x, JPG, or every page at once, named after the page. Projects can be saved and loaded as `.json` files.
 - **Share links:** a view-only link carries the whole project, compressed into the URL. Nothing is uploaded. Viewers can flip through pages, export images, or make an editable copy.
 - **Autosave:** everything is saved to your browser's local storage as you work.
