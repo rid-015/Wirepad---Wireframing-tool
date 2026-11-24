@@ -218,10 +218,10 @@ function Board({ page, zoom: z }: { page: Page; zoom: number }) {
         </div>
       )}
       {guides && guides.x != null && (
-        <div data-noexport="1" style={{ position: "absolute", top: 0, bottom: 0, left: guides.x, width: 1 / z, marginLeft: -0.5 / z, background: GUIDE, pointerEvents: "none", zIndex: 6 }} />
+        <div data-noexport="1" style={{ position: "absolute", top: 0, bottom: 0, left: guides.x, width: 1 / z, background: GUIDE, pointerEvents: "none", zIndex: 6 }} />
       )}
       {guides && guides.y != null && (
-        <div data-noexport="1" style={{ position: "absolute", left: 0, right: 0, top: guides.y, height: 1 / z, marginTop: -0.5 / z, background: GUIDE, pointerEvents: "none", zIndex: 6 }} />
+        <div data-noexport="1" style={{ position: "absolute", left: 0, right: 0, top: guides.y, height: 1 / z, background: GUIDE, pointerEvents: "none", zIndex: 6 }} />
       )}
       {!page.elements.length && !view && (
         <div
@@ -313,7 +313,7 @@ export function Canvas() {
               <span>{pg.name}</span>
               <span className="font-mono text-[#5c5c5c]">{`${F.label} · ${F.w}×${F.h}`}</span>
             </div>
-            <div style={{ width: F.w * zoom, height: F.h * zoom, position: "relative" }}>
+            <div style={{ width: Math.round(F.w * zoom), height: Math.round(F.h * zoom), position: "relative" }}>
               <Board page={pg} zoom={zoom} />
             </div>
             {!view && (
